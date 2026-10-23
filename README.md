@@ -64,6 +64,7 @@ kill $(lsof -tiTCP:4848 -sTCP:LISTEN)
 - `pnpm dev`: 개발 서버(http://localhost:3000, 앱 DB)
 - `pnpm test`: 테스트(Vitest, 메모리 DB를 쓰고 Claude API를 부르지 않는다)
 - `pnpm typecheck`, `pnpm lint`
+- `pnpm verify`: 타입 검사 → 린트 → 테스트 → 빌드
 - 스키마를 고치면 `pnpm db:generate`로 마이그레이션을 만들고 `pnpm db:migrate`로 앱 DB에 적용한다. 주의할 점은 [design.md](docs/design.md) 2.3에 있다.
 
 ### 확인용 시드 DB
@@ -78,3 +79,12 @@ pnpm db:seed
 - `pnpm build` 뒤 `pnpm start:seed`: 시드 DB로 빌드한 앱(http://localhost:3011)
 
 포트는 운영 서버 4848, 개발 서버 3000·3001·3010·3011이다. 같은 맥에서 쓰는 senseful(4747)과 겹치지 않는다.
+
+### push 전 검사
+
+저장소에는 계좌번호나 실제 거래에서 나온 개인 정보, 비밀 값이 들어가면 안 된다. `pnpm install`이 Git 훅 폴더를 `.githooks`로 연결하고, push할 때마다 `pre-push` 훅이 `pnpm verify`와 공개 저장소 검사를 돌린다. 하나라도 실패하면 push를 멈춘다. 훅을 건너뛰지 않는다(`--no-verify` 금지).
+
+- 공개 저장소 검사(`scripts/checks/repo-check.ts`)는 push하는 커밋의 파일 내용, 커밋 메시지, 브랜치 이름에서 금지 문자열과 비밀 값을 찾고, 비공개 파일(`docs/`, `samples/`, `data/`, `.env*`, `*.db`, 거래 내역 엑셀)이 커밋에 없는지 본다.
+- 검사 기준은 저장소에 두지 않는다. 금지 문자열은 비공개 문서의 `docs/checks/forbidden-strings.txt`, 비밀 값은 `.env.local`에서 읽는다. 둘 중 하나라도 없으면 검사를 할 수 없다고 알리고 push를 멈춘다.
+- 찾은 문자열은 출력하지 않고 종류와 위치(커밋:파일:줄)만 알린다.
+- `pnpm check:repo`: 모든 커밋과 브랜치를 검사한다.

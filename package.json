@@ -11,12 +11,15 @@
     "typecheck": "next typegen && tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
+    "verify": "pnpm typecheck && pnpm lint && pnpm test && pnpm build",
+    "check:repo": "tsx scripts/checks/repo-check.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "mkdir -p data && drizzle-kit migrate",
     "db:seed": "tsx scripts/seed.ts",
     "dev:seed": "WONBOOK_DB_PATH=data/dev.db next dev -p 3001",
     "start:seed": "WONBOOK_DB_PATH=data/dev.db next start -p 3011",
-    "make-launcher": "scripts/make-launcher.sh"
+    "make-launcher": "scripts/make-launcher.sh",
+    "prepare": "git rev-parse --git-dir >/dev/null 2>&1 && git config core.hooksPath .githooks || true"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "0.135.0",
