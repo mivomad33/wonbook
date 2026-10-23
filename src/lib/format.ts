@@ -12,19 +12,21 @@ export function toDisplayBalance(kind: AccountKind, balance: number): number {
   return kind === "liability" ? 0 - balance : balance;
 }
 
-// 날짜는 한국 시간 기준 문자열로 다룬다(design.md 1.1). 로컬 앱이라 실행하는 컴퓨터의 시간대를 그대로 쓴다.
+// 날짜는 한국 시간(Asia/Seoul) 기준 문자열로 다룬다(design.md 1.1, 4.2-3). 서버 시간대(UTC)와 상관없다.
+// 한국은 서머타임이 없어 UTC+9로 고정해 계산한다.
+const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
+
 export function toDateString(d: Date): string {
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  return new Date(d.getTime() + KST_OFFSET_MS).toISOString().slice(0, 10);
 }
 
-export function today(): string {
-  return toDateString(new Date());
+export function today(now: Date = new Date()): string {
+  return toDateString(now);
 }
 
 // 이번 달(`YYYY-MM`)
-export function currentMonth(): string {
-  return today().slice(0, 7);
+export function currentMonth(now: Date = new Date()): string {
+  return today(now).slice(0, 7);
 }
 
 // `YYYY-MM-DD`에서 delta일 옮긴 날. 시간대 영향을 받지 않게 UTC로 계산한다.

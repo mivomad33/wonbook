@@ -4,36 +4,14 @@
     {
       "name": "dev",
       "runtimeExecutable": "pnpm",
-      "runtimeArgs": [
-        "dev"
-      ],
+      "runtimeArgs": ["dev"],
       "port": 3000
     },
     {
       "name": "start",
       "runtimeExecutable": "pnpm",
-      "runtimeArgs": [
-        "start",
-        "-p",
-        "3010"
-      ],
+      "runtimeArgs": ["start", "-p", "3010"],
       "port": 3010
-    },
-    {
-      "name": "dev-seed",
-      "runtimeExecutable": "pnpm",
-      "runtimeArgs": [
-        "dev:seed"
-      ],
-      "port": 3001
-    },
-    {
-      "name": "start-seed",
-      "runtimeExecutable": "pnpm",
-      "runtimeArgs": [
-        "start:seed"
-      ],
-      "port": 3011
     }
   ]
 }

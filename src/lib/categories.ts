@@ -1,6 +1,7 @@
 // 카테고리 조회·추가·수정·삭제(5단계 파일 8장). 분류 로직은 lib/categorize/에 둔다.
+// 카테고리는 사용자별이다(2.3). 남의 카테고리 id는 없는 카테고리와 같다.
 import { and, asc, eq, max, ne, sql } from "drizzle-orm";
-import type { Db, DbOrTx } from "@/db/client";
+import type { DbOrTx } from "@/db/client";
 import { categories, type CategoryGroup, transactions } from "@/db/schema";
 import { type CategoryInput, isFixedCategory } from "@/lib/category-form";
 import { UserError } from "@/lib/user-error";
@@ -11,81 +12,93 @@ const outerCategoryId = sql.raw(`"categories"."id"`);
 const groupOrder = sql`case ${categories.group} when 'expense' then 0 when 'income' then 1 else 2 end`;
 
 // 묶음(지출 → 수입 → 이동) 안에서 sort_order 순. 화면의 선택 목록과 카테고리 화면이 같은 순서를 쓴다.
-export function listCategoryOptions(db: DbOrTx) {
+export async function listCategoryOptions(db: DbOrTx, userId: number) {
   return db
     .select({ id: categories.id, name: categories.name, group: categories.group })
     .from(categories)
-    .orderBy(groupOrder, asc(categories.sortOrder), asc(categories.id))
-    .all();
+    .where(eq(categories.userId, userId))
+    .orderBy(groupOrder, asc(categories.sortOrder), asc(categories.id));
 }
 
 // 카테고리 화면 목록. 거래 수는 삭제 표시하지 않은 거래(거래 목록에서 보이는 수), 저장된 분류 수는 category_rules 수다.
-export function listCategories(db: Db) {
+export async function listCategories(db: DbOrTx, userId: number) {
   return db
     .select({
       id: categories.id,
       name: categories.name,
       group: categories.group,
-      transactionCount: sql<number>`(select count(*) from transactions t where t.category_id = ${outerCategoryId} and t.deleted_at is null)`,
-      ruleCount: sql<number>`(select count(*) from category_rules r where r.category_id = ${outerCategoryId})`,
+      transactionCount: sql<number>`(select count(*) from transactions t where t.category_id = ${outerCategoryId} and t.deleted_at is null)`.mapWith(Number),
+      ruleCount: sql<number>`(select count(*) from category_rules r where r.category_id = ${outerCategoryId})`.mapWith(Number),
     })
     .from(categories)
-    .orderBy(groupOrder, asc(categories.sortOrder), asc(categories.id))
-    .all();
+    .where(eq(categories.userId, userId))
+    .orderBy(groupOrder, asc(categories.sortOrder), asc(categories.id));
 }
 
 function assertNotFixed(name: string) {
   if (isFixedCategory(name)) throw new UserError(`"${name}"은(는) AI 분류에 쓰는 카테고리라 바꾸거나 지울 수 없습니다.`);
 }
 
-export type CategoryListItem = ReturnType<typeof listCategories>[number];
+export type CategoryListItem = Awaited<ReturnType<typeof listCategories>>[number];
 
-export function getCategory(db: DbOrTx, id: number, field?: string) {
-  const row = db.select().from(categories).where(eq(categories.id, id)).get();
+export async function getCategory(db: DbOrTx, userId: number, id: number, field?: string) {
+  const [row] = await db
+    .select()
+    .from(categories)
+    .where(and(eq(categories.id, id), eq(categories.userId, userId)));
   if (!row) throw new UserError("카테고리를 찾을 수 없습니다. 이미 지워졌을 수 있습니다.", field);
   return row;
 }
 
-// unique index(coalesce(parent_id, 0), name)와 같은 조건을 미리 찾아 알려준다.
-function assertNameFree(db: DbOrTx, name: string, excludeId?: number) {
-  const dup = db
+// unique index(user_id, coalesce(parent_id, 0), name)와 같은 조건을 미리 찾아 알려준다.
+async function assertNameFree(db: DbOrTx, userId: number, name: string, excludeId?: number) {
+  const [dup] = await db
     .select({ id: categories.id })
     .from(categories)
-    .where(and(eq(categories.name, name), excludeId === undefined ? undefined : ne(categories.id, excludeId)))
-    .get();
+    .where(and(eq(categories.userId, userId), eq(categories.name, name), excludeId === undefined ? undefined : ne(categories.id, excludeId)))
+    .limit(1);
   if (dup) throw new UserError(`"${name}" 카테고리가 이미 있습니다.`, "name");
 }
 
 // 같은 묶음의 맨 뒤 순서
-function nextSortOrder(db: DbOrTx, group: CategoryGroup): number {
-  const row = db.select({ max: max(categories.sortOrder) }).from(categories).where(eq(categories.group, group)).get();
+async function nextSortOrder(db: DbOrTx, userId: number, group: CategoryGroup): Promise<number> {
+  const [row] = await db
+    .select({ max: max(categories.sortOrder) })
+    .from(categories)
+    .where(and(eq(categories.userId, userId), eq(categories.group, group)));
   return row?.max == null ? 0 : row.max + 1;
 }
 
-export function createCategory(db: Db, input: CategoryInput): number {
-  assertNameFree(db, input.name);
-  return db
+export async function createCategory(db: DbOrTx, userId: number, input: CategoryInput): Promise<number> {
+  await assertNameFree(db, userId, input.name);
+  const [row] = await db
     .insert(categories)
-    .values({ ...input, sortOrder: nextSortOrder(db, input.group) })
-    .returning({ id: categories.id })
-    .get().id;
+    .values({ ...input, userId, sortOrder: await nextSortOrder(db, userId, input.group) })
+    .returning({ id: categories.id });
+  return row.id;
 }
 
 // 이름과 묶음을 고친다. 묶음을 바꾸면 새 묶음의 맨 뒤로 간다.
-export function updateCategory(db: Db, id: number, input: CategoryInput) {
-  const current = getCategory(db, id);
+export async function updateCategory(db: DbOrTx, userId: number, id: number, input: CategoryInput): Promise<void> {
+  const current = await getCategory(db, userId, id);
   assertNotFixed(current.name);
-  assertNameFree(db, input.name, id);
-  const sortOrder = current.group === input.group ? current.sortOrder : nextSortOrder(db, input.group);
-  db.update(categories).set({ ...input, sortOrder }).where(eq(categories.id, id)).run();
+  await assertNameFree(db, userId, input.name, id);
+  const sortOrder = current.group === input.group ? current.sortOrder : await nextSortOrder(db, userId, input.group);
+  await db
+    .update(categories)
+    .set({ ...input, sortOrder })
+    .where(and(eq(categories.id, id), eq(categories.userId, userId)));
 }
 
 // 지우면 거래는 미분류(set null), 저장된 분류는 함께 지워진다(cascade).
 // set null은 category_id만 비우므로 같은 트랜잭션에서 category_source도 비운다(미분류는 둘 다 null).
-export function deleteCategory(db: Db, id: number) {
-  assertNotFixed(getCategory(db, id).name);
-  db.transaction((tx) => {
-    tx.update(transactions).set({ categoryId: null, categorySource: null }).where(eq(transactions.categoryId, id)).run();
-    tx.delete(categories).where(eq(categories.id, id)).run();
+export async function deleteCategory(db: DbOrTx, userId: number, id: number): Promise<void> {
+  assertNotFixed((await getCategory(db, userId, id)).name);
+  await db.transaction(async (tx) => {
+    await tx
+      .update(transactions)
+      .set({ categoryId: null, categorySource: null })
+      .where(and(eq(transactions.categoryId, id), eq(transactions.userId, userId)));
+    await tx.delete(categories).where(and(eq(categories.id, id), eq(categories.userId, userId)));
   });
 }

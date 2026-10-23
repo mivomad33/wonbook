@@ -1,0 +1,13 @@
+name: 준비
+description: pnpm(package.json의 packageManager)과 Node(.nvmrc)를 설치하고 의존성을 lockfile 그대로 설치한다(pnpm 캐시 사용).
+runs:
+  using: composite
+  steps:
+    - uses: pnpm/action-setup@v4
+    - uses: actions/setup-node@v4
+      with:
+        node-version-file: .nvmrc
+        cache: pnpm
+    - name: 의존성 설치
+      shell: bash
+      run: pnpm install --frozen-lockfile

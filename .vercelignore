@@ -1,0 +1,13 @@
+# Vercel CLI가 올리지 않는 파일. 로컬 DB·백업, 금융사 샘플, 비공개 문서, 비밀 값이 올라가면 안 된다.
+# 배포는 로컬에서 빌드한 결과물만 올리는 방식(vercel deploy --prebuilt)이지만, 원격 빌드(--remote-build)로 소스를 올릴 때도 빠지게 둔다.
+data/
+samples/
+docs/
+*.db
+*.db-*
+*.xls
+*.xlsx
+.env*
+test-results/
+playwright-report/
+.next-e2e/

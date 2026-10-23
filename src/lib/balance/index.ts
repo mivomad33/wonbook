@@ -1,17 +1,16 @@
 // 잔액 계산(design.md 1.3-D). 계정 관리, 자산 현황, 거래 목록 요약(2단계)과 보정 거래(4단계)가 쓴다.
-import { and, eq, gt, inArray, isNull, lt, ne, or, sql } from "drizzle-orm";
-import type { Db, DbOrTx } from "@/db/client";
+import { and, asc, eq, gt, inArray, isNull, lt, ne, or, sql } from "drizzle-orm";
+import type { DbOrTx } from "@/db/client";
 import { accounts, transactions } from "@/db/schema";
 
 // 잔액 = opening_balance + (date > opening_date이고 삭제 표시 안 된 거래의 amount 합). opening_date가 null이면 모두 더한다.
 // 저장값 그대로 돌려준다(부채는 음수). 화면에서는 toDisplayBalance로 뒤집는다.
-// 카드 계정은 잔액을 쓰지 않으므로 결과에 넣지 않는다(design.md 1.4).
-export function getBalances(db: Db, accountIds?: number[]): Map<number, number> {
-  const rows = db
-    .select({
-      id: accounts.id,
-      balance: sql<number>`${accounts.openingBalance} + coalesce(sum(${transactions.amount}), 0)`,
-    })
+// 카드 계정은 잔액을 쓰지 않으므로 결과에 넣지 않는다(design.md 1.4). 그 사용자의 계정만 본다.
+const balanceSql = sql<number>`${accounts.openingBalance} + coalesce(sum(${transactions.amount}), 0)`.mapWith(Number);
+
+export async function getBalances(db: DbOrTx, userId: number, accountIds?: number[]): Promise<Map<number, number>> {
+  const rows = await db
+    .select({ id: accounts.id, balance: balanceSql })
     .from(accounts)
     .leftJoin(
       transactions,
@@ -21,21 +20,21 @@ export function getBalances(db: Db, accountIds?: number[]): Map<number, number> 
         or(isNull(accounts.openingDate), gt(transactions.date, accounts.openingDate)),
       ),
     )
-    .where(and(ne(accounts.kind, "card"), accountIds ? inArray(accounts.id, accountIds) : undefined))
+    .where(and(eq(accounts.userId, userId), ne(accounts.kind, "card"), accountIds ? inArray(accounts.id, accountIds) : undefined))
     .groupBy(accounts.id)
-    .all();
+    .orderBy(asc(accounts.id));
   return new Map(rows.map((r) => [r.id, r.balance]));
 }
 
-export function getBalance(db: Db, accountId: number): number | undefined {
-  return getBalances(db, [accountId]).get(accountId);
+export async function getBalance(db: DbOrTx, userId: number, accountId: number): Promise<number | undefined> {
+  return (await getBalances(db, userId, [accountId])).get(accountId);
 }
 
 // 날짜로 끊은 잔액: 위 식에 date < before 조건을 더한다(4단계 파일 3.4). 보정 계산의 기간 시작 직전 잔액에 쓴다.
 // 덮어쓸 기간 뒤에 남은 거래까지 더하지 않기 위해 getBalances와 따로 둔다.
-export function getBalanceBefore(db: DbOrTx, accountId: number, before: string): number {
-  const row = db
-    .select({ balance: sql<number>`${accounts.openingBalance} + coalesce(sum(${transactions.amount}), 0)` })
+export async function getBalanceBefore(db: DbOrTx, userId: number, accountId: number, before: string): Promise<number> {
+  const [row] = await db
+    .select({ balance: balanceSql })
     .from(accounts)
     .leftJoin(
       transactions,
@@ -46,9 +45,8 @@ export function getBalanceBefore(db: DbOrTx, accountId: number, before: string):
         lt(transactions.date, before),
       ),
     )
-    .where(eq(accounts.id, accountId))
-    .groupBy(accounts.id)
-    .get();
+    .where(and(eq(accounts.id, accountId), eq(accounts.userId, userId)))
+    .groupBy(accounts.id);
   if (!row) throw new Error(`계정 ${accountId}이(가) 없습니다.`);
   return row.balance;
 }

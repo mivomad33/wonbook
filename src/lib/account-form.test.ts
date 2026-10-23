@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { accountFormSchema } from "@/lib/account-form";
+import { accountFormSchema, accountInputSchema, toAccountInput } from "@/lib/account-form";
+import { toAccountKeyRef } from "@/lib/privacy/account-key";
 
 describe("계정 폼 검사", () => {
   it("부채 기초 잔액은 양수로 받아 음수로 저장하고, 빈 칸은 null로 바꾼다", () => {
@@ -49,5 +50,37 @@ describe("계정 폼 검사", () => {
     expect(errors({ openingDate: "2026-13-01" })).toEqual(["openingDate"]);
     const r = accountFormSchema.safeParse({ name: "계정", kind: "asset", openingDate: "x" });
     expect(r.error?.issues[0].message).toBe("기준일을 YYYY-MM-DD로 입력하세요.");
+  });
+});
+
+describe("서버로 보내는 계정 값(4.7-1)", () => {
+  it("계좌번호는 해시와 끝 4자리로 바꿔 보내고, 수정 때 빈 칸은 그대로 두기(undefined)로 보낸다", async () => {
+    const bank = accountFormSchema.parse({ name: "급여", kind: "asset", institution: "hana_bank", externalKey: "111-222222-33333" });
+    const input = await toAccountInput(bank);
+    expect(input).toEqual({
+      name: "급여",
+      kind: "asset",
+      institution: "hana_bank",
+      accountKey: await toAccountKeyRef("hana_bank", "11122222233333"),
+      openingBalance: 0,
+      openingDate: null,
+    });
+    expect(JSON.stringify(input)).not.toContain("11122222233333");
+
+    const blank = accountFormSchema.parse({ name: "급여", kind: "asset", institution: "hana_bank", externalKey: "" });
+    expect((await toAccountInput(blank)).accountKey).toBeNull();
+    expect((await toAccountInput(blank, { keepBlankKey: true })).accountKey).toBeUndefined();
+    const card = accountFormSchema.parse({ name: "카드", kind: "card", institution: "hana_card" });
+    expect((await toAccountInput(card, { keepBlankKey: true })).accountKey).toBeNull();
+  });
+
+  it("서버는 받은 값을 다시 검사하고, 식별값을 쓰지 않는 금융사의 식별값은 버린다", async () => {
+    const accountKey = await toAccountKeyRef("hana_bank", "111");
+    const base = { name: "계정", kind: "asset", institution: "hana_bank", accountKey, openingBalance: -5, openingDate: null };
+    expect(accountInputSchema.parse(base)).toMatchObject({ accountKey, openingBalance: -5 });
+    expect(accountInputSchema.parse({ ...base, kind: "card", institution: "hana_card" })).toMatchObject({ accountKey: null, openingBalance: 0 });
+    expect(accountInputSchema.safeParse({ ...base, accountKey: { digest: "11122222233333", last4: "3333" } }).success).toBe(false);
+    expect(accountInputSchema.safeParse({ ...base, openingBalance: 1.5 }).success).toBe(false);
+    expect(accountInputSchema.safeParse({ ...base, kind: "card" }).success).toBe(false);
   });
 });

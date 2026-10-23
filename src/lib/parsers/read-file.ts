@@ -13,7 +13,7 @@ const ENCRYPTION_INFO = Buffer.from("EncryptionInfo", "utf16le");
 
 export const UNSUPPORTED_FILE = "지원하지 않는 파일입니다";
 export const UNREADABLE_FILE = "파일을 읽을 수 없습니다(파일이 손상됐을 수 있습니다)";
-export const KAKAOBANK_PASSWORD_ERROR = "카카오뱅크 파일 암호가 없거나 맞지 않습니다(.env.local의 KAKAOBANK_FILE_PASSWORD)";
+export const KAKAOBANK_PASSWORD_ERROR = "카카오뱅크 파일 암호가 없거나 맞지 않습니다.";
 
 // 확장자가 아니라 내용으로 판별한다(0단계 파일 2.4). 한국투자증권 파일은 확장자가 xls인 HTML이다.
 export function detectFileKind(buf: Buffer): FileKind | null {

@@ -1,0 +1,46 @@
+# 모든 브랜치 push와 PR에서 verify를 "검사 → 빌드" 두 작업으로 나눠 돌린다(4.10-2, README "CI").
+# 배포하지 않는다. 통합·E2E 테스트와 공개 저장소 검사는 비밀 값·비공개 기준이 필요해 로컬에서 한다.
+name: CI
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+# 빌드에 필요한 환경 변수는 가짜 값이다. 빌드 중 정적 페이지는 DB를 쓰지 않는다.
+env:
+  DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
+  GOOGLE_CLIENT_ID: ci
+  GOOGLE_CLIENT_SECRET: ci
+  ADMIN_EMAIL: ci@example.com
+  ANTHROPIC_API_KEY: ci
+  ACCOUNT_HASH_KEY: Y2ktYWNjb3VudC1oYXNoLWtleS1idWlsZC1vbmx5ISE=
+  PASSWORD_ENCRYPTION_KEY: Y2ktcGFzc3dvcmQtZW5jLWtleS1idWlsZC1vbmx5ISE=
+jobs:
+  check:
+    name: 검사
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup
+      - name: 타입 검사
+        run: pnpm typecheck
+      - name: 린트
+        run: pnpm lint
+      - name: 단위 테스트
+        run: pnpm test
+  build:
+    name: 빌드
+    needs: check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: ./.github/actions/setup
+      - name: 빌드
+        run: pnpm build

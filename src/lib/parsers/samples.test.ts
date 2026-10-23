@@ -4,10 +4,11 @@ import fs from "node:fs";
 import path from "node:path";
 import { parseEnv } from "node:util";
 import { describe, expect, it } from "vitest";
-import { createTestDb } from "@/db/test-db";
-import { accounts, type Institution, transactions } from "@/db/schema";
+import { createTestContext } from "@/db/test-db";
+import { type Institution, transactions } from "@/db/schema";
+import { createAccount } from "@/lib/accounts";
 import { getBalance } from "@/lib/balance";
-import { applyImport, normalizeAccountKey, openingFromFile } from "@/lib/import";
+import { applyImport, openingFromFile, toUploadedFile } from "@/lib/import";
 import { text, toNumber } from "./common";
 import { findParser } from "./index";
 import { readSheets } from "./read-file";
@@ -117,25 +118,24 @@ describe.skipIf(!hasSamples)("실제 샘플 파일(samples/)", () => {
   });
 
   // 업로드 반영(3-3)과 보정(4-2)을 실제 파일로 확인한다. "계정 만들고 올리기"(3단계 파일 3장)처럼 기초 잔액을 파일에서 채운다.
+  // 브라우저처럼 보낼 값(toUploadedFile: 계좌 해시, 긴 숫자 가리기)으로 바꿔 반영한다.
   it.each(SAMPLES)("$prefix: 새 계정에 반영하면 두 번 올려도 거래 수가 같고, 보정 뒤 잔액이 파일의 마지막 잔액과 같다", async ({ prefix }) => {
     const { parsed } = await load(prefix);
-    const db = createTestDb();
-    const accountId = db
-      .insert(accounts)
-      .values({
-        name: prefix,
-        kind: parsed.institution.endsWith("_card") ? "card" : "asset",
-        institution: parsed.institution,
-        externalKey: normalizeAccountKey(parsed.institution, parsed.accountKey),
-        ...openingFromFile(parsed),
-      })
-      .returning()
-      .get().id;
+    const file = await toUploadedFile(prefix, parsed);
+    expect(JSON.stringify({ ...file, accountKey: null })).not.toMatch(/\d{10,}/);
+    const { db, userId } = await createTestContext();
+    const accountId = await createAccount(db, userId, {
+      name: prefix,
+      kind: parsed.institution.endsWith("_card") ? "card" : "asset",
+      institution: parsed.institution,
+      accountKey: file.accountKey,
+      ...openingFromFile(file),
+    });
     // 한국투자증권 일반은 매매·세금 때문에 잔액이 거래와 맞지 않는 날이 6일이라 보정 6건이 생긴다(4단계 파일 머리).
     // 나머지는 기초 잔액을 파일에서 채우므로 보정이 생기지 않는다.
     const adjustmentCount = prefix === "한투_trade" ? 6 : 0;
     for (let i = 0; i < 2; i++) {
-      const result = applyImport(db, { accountId, fileName: prefix, parsed, confirmedIds: [], backupPath: null });
+      const result = await applyImport(db, userId, { accountId, fileName: file.fileName, file, confirmedIds: [] });
       expect(result).toMatchObject({
         status: "applied",
         insertedCount: parsed.transactions.length,
@@ -143,10 +143,10 @@ describe.skipIf(!hasSamples)("실제 샘플 파일(samples/)", () => {
         newAdjustments: { count: i === 0 ? adjustmentCount : 0 },
       });
     }
-    const rows = db.select().from(transactions).all();
+    const rows = await db.select().from(transactions);
     expect(rows.filter((r) => r.kind === "normal")).toHaveLength(parsed.transactions.length);
     expect(rows.filter((r) => r.kind === "adjustment")).toHaveLength(adjustmentCount);
     const last = parsed.transactions.at(-1)!.balanceAfter;
-    if (last != null) expect(getBalance(db, accountId)).toBe(last);
+    if (last != null) expect(await getBalance(db, userId, accountId)).toBe(last);
   });
 });

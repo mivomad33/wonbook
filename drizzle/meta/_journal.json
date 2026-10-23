@@ -1,26 +1,19 @@
 {
   "version": "7",
-  "dialect": "sqlite",
+  "dialect": "postgresql",
   "entries": [
     {
       "idx": 0,
-      "version": "6",
-      "when": 1792360577922,
-      "tag": "0000_silent_manta",
+      "version": "7",
+      "when": 1792744295337,
+      "tag": "0000_init",
       "breakpoints": true
     },
     {
       "idx": 1,
-      "version": "6",
-      "when": 1792386922569,
-      "tag": "0001_cool_sumo",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "6",
-      "when": 1792386944977,
-      "tag": "0002_initial_categories",
+      "version": "7",
+      "when": 1792746008745,
+      "tag": "0001_upload_staging",
       "breakpoints": true
     }
   ]

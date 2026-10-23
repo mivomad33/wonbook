@@ -1,10 +1,11 @@
 // 월별 수입/지출과 자산 현황 집계(6단계 파일 2·4·5장).
 // SQL에서 계정 종류·카테고리·부호로 묶어 합을 구하고, 나누기·정렬·비율은 아래 순수 함수로 한다.
 import { and, eq, gte, isNull, lt, max, sql } from "drizzle-orm";
-import type { Db } from "@/db/client";
+import type { DbOrTx } from "@/db/client";
 import { accounts, categories, imports, type Institution, transactions } from "@/db/schema";
 import { listAccounts } from "@/lib/accounts";
 import { shiftMonth, toDisplayBalance } from "@/lib/format";
+import { countAll } from "@/lib/sql";
 
 export const UNCATEGORIZED_NAME = "미분류";
 
@@ -57,26 +58,28 @@ function monthRange(month: string) {
   return and(gte(transactions.date, `${month}-01`), lt(transactions.date, `${shiftMonth(month, 1)}-01`));
 }
 
-export function getMonthlyReport(db: Db, month: string): MonthlyReport {
-  const isCard = sql<number>`${accounts.kind} = 'card'`;
-  const positive = sql<number>`${transactions.amount} > 0`;
+// 그 사용자의 거래만 집계한다(4.2-2).
+export async function getMonthlyReport(db: DbOrTx, userId: number, month: string): Promise<MonthlyReport> {
+  const isCard = sql<boolean>`${accounts.kind} = 'card'`;
+  const positive = sql<boolean>`${transactions.amount} > 0`;
   // 삭제 표시 안 된 일반 거래를 (카드 여부, 카테고리, 부호)로 묶는다. 이체·보정은 넣지 않는다(1.1·1.2).
-  const rows = db
-    .select({
-      isCard,
-      positive,
-      categoryId: transactions.categoryId,
-      name: categories.name,
-      group: categories.group,
-      amount: sql<number>`sum(${transactions.amount})`,
-    })
-    .from(transactions)
-    .innerJoin(accounts, eq(accounts.id, transactions.accountId))
-    .leftJoin(categories, eq(categories.id, transactions.categoryId))
-    .where(and(isNull(transactions.deletedAt), eq(transactions.kind, "normal"), monthRange(month)))
-    .groupBy(isCard, transactions.categoryId, positive)
-    .all()
-    .map((r) => ({ ...r, isCard: Boolean(r.isCard), positive: Boolean(r.positive), name: r.name ?? UNCATEGORIZED_NAME }));
+  // Postgres는 select의 칸이 모두 group by에 있어야 해서 카테고리 이름·묶음도 넣는다(카테고리 id로 정해지는 값이다).
+  const rows = (
+    await db
+      .select({
+        isCard,
+        positive,
+        categoryId: transactions.categoryId,
+        name: categories.name,
+        group: categories.group,
+        amount: sql<number>`sum(${transactions.amount})`.mapWith(Number),
+      })
+      .from(transactions)
+      .innerJoin(accounts, eq(accounts.id, transactions.accountId))
+      .leftJoin(categories, eq(categories.id, transactions.categoryId))
+      .where(and(eq(transactions.userId, userId), isNull(transactions.deletedAt), eq(transactions.kind, "normal"), monthRange(month)))
+      .groupBy(isCard, transactions.categoryId, categories.name, categories.group, positive)
+  ).map((r) => ({ ...r, isCard: Boolean(r.isCard), positive: Boolean(r.positive), name: r.name ?? UNCATEGORIZED_NAME }));
 
   // 계정 부분: 이동 묶음은 이동 표로 빼고, 나머지를 부호로 수입·지출로 나눈다(1.4·1.5).
   const accountRows = rows.filter((r) => !r.isCard);
@@ -96,19 +99,19 @@ export function getMonthlyReport(db: Db, month: string): MonthlyReport {
   const expenseByCategory = buildLines(flows.filter((r) => !r.positive).map((r) => ({ ...r, amount: -r.amount })));
 
   // 잔액 보정: 같은 달 자산·부채 계정의 보정 거래 건수와 합(1.2)
-  const adjustment = db
-    .select({ count: sql<number>`count(*)`, total: sql<number>`coalesce(sum(${transactions.amount}), 0)` })
+  const [adjustment = { count: 0, total: 0 }] = await db
+    .select({ count: countAll(), total: sql<number>`coalesce(sum(${transactions.amount}), 0)`.mapWith(Number) })
     .from(transactions)
     .innerJoin(accounts, eq(accounts.id, transactions.accountId))
     .where(
       and(
+        eq(transactions.userId, userId),
         isNull(transactions.deletedAt),
         eq(transactions.kind, "adjustment"),
         sql`${accounts.kind} <> 'card'`,
         monthRange(month),
       ),
-    )
-    .get() ?? { count: 0, total: 0 };
+    );
 
   // 카드 부분: 카테고리마다 결제·환불을 합친 순액(1.5, 결정 G4). 이동 묶음도 나누지 않는다.
   const cardRows = rows.filter((r) => r.isCard);
@@ -154,16 +157,17 @@ export type AssetOverview = {
 };
 
 // 계정 순서는 listAccounts(종류 묶음 안 sort_order 순), 잔액은 getBalances를 그대로 쓴다(5.1).
-export function getAssetOverview(db: Db): AssetOverview {
+export async function getAssetOverview(db: DbOrTx, userId: number): Promise<AssetOverview> {
   const periodEnds = new Map(
-    db
-      .select({ accountId: imports.accountId, end: max(imports.periodEnd) })
-      .from(imports)
-      .groupBy(imports.accountId)
-      .all()
-      .map((r) => [r.accountId, r.end]),
+    (
+      await db
+        .select({ accountId: imports.accountId, end: max(imports.periodEnd) })
+        .from(imports)
+        .where(eq(imports.userId, userId))
+        .groupBy(imports.accountId)
+    ).map((r) => [r.accountId, r.end]),
   );
-  const list = listAccounts(db).map((a) => ({
+  const list = (await listAccounts(db, userId)).map((a) => ({
     id: a.id,
     name: a.name,
     kind: a.kind,

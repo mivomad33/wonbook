@@ -1,12 +1,15 @@
-// 확인용 시드 데이터(design.md 4.5). 실행한 날을 기준으로 이번 달과 앞의 두 달 치를 넣는다.
-// 앱 규칙을 따르도록 lib/의 입력 함수를 거친다. 업로드 거래는 가짜 파일을 만들어 업로드 코드(applyImport)로 넣는다(3단계 파일 8.1).
-import { asc, eq } from "drizzle-orm";
-import type { Db } from "@/db/client";
-import { accounts, categories, categoryRules, type Institution, transactions } from "@/db/schema";
+// 확인용 시드 데이터(design.md 4.5). 사용자 한 명에게 실행한 날(한국 시간)을 기준으로 이번 달과 앞의 두 달 치를 넣는다.
+// 개발 DB의 테스트 사용자와 읽기 전용 데모 사용자(4.5)가 같이 쓴다.
+// 앱 규칙을 따르도록 lib/의 입력 함수를 거친다. 업로드 거래는 브라우저가 보내는 값(UploadedFile)을 만들어 업로드 코드(applyImport)로 넣는다(3단계 파일 8.1).
+// 계좌 식별값은 누가 봐도 가짜인 번호(0으로 채운 번호)로 만든다.
+import { and, asc, eq } from "drizzle-orm";
+import type { DbOrTx } from "@/db/client";
+import { categories, categoryRules, type Institution, transactions } from "@/db/schema";
+import { createAccount } from "@/lib/accounts";
 import { matchKeyOf } from "@/lib/categorize";
 import { shiftMonth, today } from "@/lib/format";
-import { applyImport } from "@/lib/import";
-import type { ParsedTransaction } from "@/lib/parsers";
+import { applyImport, type UploadedFile, type UploadedTransaction } from "@/lib/import";
+import { type AccountKeyRef, toAccountKeyRef } from "@/lib/privacy/account-key";
 import { createTransaction, createTransfer, setTransactionDeleted, updateTransaction } from "@/lib/transactions";
 
 // amount를 세 값으로 주면 달마다(첫 달, 가운데 달, 이번 달) 다른 금액이다. month를 주면 그 달(0~2)에만 넣는다(6단계 파일 6장).
@@ -20,7 +23,8 @@ type Upload = {
   month?: 0 | 1 | 2;
 };
 
-export function seedDevData(db: Db, now = today()) {
+export async function seed(db: DbOrTx, userId: number, options: { now?: Date } = {}) {
+  const now = today(options.now);
   const thisMonth = now.slice(0, 7);
   const months = [shiftMonth(thisMonth, -2), shiftMonth(thisMonth, -1), thisMonth];
   const firstMonth = months[0];
@@ -30,68 +34,81 @@ export function seedDevData(db: Db, now = today()) {
     return date <= now ? date : null;
   };
 
-  const addAccount = (values: typeof accounts.$inferInsert) =>
-    db.insert(accounts).values(values).returning({ id: accounts.id }).get().id;
   // 기초 잔액 기준일은 첫 달 전날(앞 달 말일)로 둔다. 기준일 당일까지의 거래는 기초 잔액에 들어 있다.
   const beforeFirst = `${shiftMonth(firstMonth, -1)}-28`;
+  const salaryKey = await toAccountKeyRef("hana_bank", "000-000000-00001");
+  const savingsKey = await toAccountKeyRef("kakao_bank", "0000-00-0000001");
 
-  const salary = addAccount({
+  const salary = await createAccount(db, userId, {
     name: "하나 급여통장",
     kind: "asset",
     institution: "hana_bank",
-    externalKey: "12345678901234",
+    accountKey: salaryKey,
     openingBalance: 2_400_000,
     openingDate: beforeFirst,
-    sortOrder: 1,
   });
-  const savings = addAccount({
+  const savings = await createAccount(db, userId, {
     name: "카카오 비상금",
     kind: "asset",
     institution: "kakao_bank",
-    externalKey: "1234",
+    accountKey: savingsKey,
     openingBalance: 5_000_000,
-    sortOrder: 2,
+    openingDate: null,
   });
-  const loan = addAccount({
+  const loan = await createAccount(db, userId, {
     name: "학자금 대출",
     kind: "liability",
+    institution: null,
+    accountKey: null,
     openingBalance: -8_000_000,
     openingDate: beforeFirst,
-    sortOrder: 1,
   });
-  const card = addAccount({ name: "하나카드", kind: "card", institution: "hana_card", sortOrder: 1 });
+  const card = await createAccount(db, userId, {
+    name: "하나카드",
+    kind: "card",
+    institution: "hana_card",
+    accountKey: null,
+    openingBalance: 0,
+    openingDate: null,
+  });
 
-  // 계정마다 석 달 치를 파일 하나로 넣는다. 기간은 첫 달 1일 ~ 오늘, 파일 이름은 `시드-<계정>`.
-  // 시드 DB는 매번 새로 만들어 백업하지 않는다. 넣은 거래 id를 넣은 순서(seq)대로 돌려준다.
+  // 계정마다 석 달 치를 파일 하나로 넣는다. 기간은 첫 달 1일 ~ 오늘, 파일 이름은 `시드-<계정>`. 넣은 거래 id를 넣은 순서(seq)대로 돌려준다.
   // actualStart를 주면 그 값에서 시작해 거래 후 잔액(balance_after)을 채운다. 기초 잔액과 다르면 보정 거래가 생긴다(4단계 파일 7장).
-  const upload = (accountId: number, institution: Institution, name: string, uploads: Upload[], actualStart?: number) => {
+  const upload = async (
+    accountId: number,
+    institution: Institution,
+    accountKey: AccountKeyRef | null,
+    name: string,
+    uploads: Upload[],
+    actualStart?: number,
+  ) => {
     let actual = actualStart ?? 0;
     const rows = months.flatMap((month, monthIndex) =>
-      uploads.flatMap((u): ParsedTransaction[] => {
+      uploads.flatMap((u): UploadedTransaction[] => {
         const date = dateOf(month, u.day);
         if (!date || (u.month != null && u.month !== monthIndex)) return [];
         const { time = null, description, method = null, cardLabel = null } = u;
         const amount = typeof u.amount === "number" ? u.amount : u.amount[monthIndex];
         actual += amount;
         const balanceAfter = actualStart == null ? null : actual;
-        return [{ date, time, amount, description, method, memo: null, cardLabel, balanceAfter, raw: {} }];
+        return [{ date, time, amount, description, method, memo: null, cardLabel, balanceAfter }];
       }),
     );
-    const result = applyImport(db, {
-      accountId,
+    const file: UploadedFile = {
       fileName: `시드-${name}`,
-      parsed: { institution, accountKey: null, period: { start: `${firstMonth}-01`, end: now }, transactions: rows },
-      confirmedIds: [],
-      backupPath: null,
-    });
+      institution,
+      accountKey,
+      period: { start: `${firstMonth}-01`, end: now },
+      transactions: rows,
+    };
+    const result = await applyImport(db, userId, { accountId, fileName: file.fileName, file, confirmedIds: [] });
     if (result.status !== "applied") throw new Error("시드 업로드가 손댄 거래에 걸렸습니다.");
-    return db
+    const inserted = await db
       .select({ id: transactions.id })
       .from(transactions)
-      .where(eq(transactions.importId, result.importId))
-      .orderBy(asc(transactions.seq))
-      .all()
-      .map((r) => r.id);
+      .where(and(eq(transactions.userId, userId), eq(transactions.importId, result.importId)))
+      .orderBy(asc(transactions.seq));
+    return inserted.map((r) => r.id);
   };
 
   const salaryUploads: Upload[] = [
@@ -122,10 +139,13 @@ export function seedDevData(db: Db, now = today()) {
   // 저장된 분류(5단계 파일 9장). 업로드 거래는 applyImport로 들어가 규칙이 있으면 saved로 붙는다.
   // AI가 분류한 셈인 규칙과, 사람 이름을 사용자가 고친 규칙 하나를 넣는다. 올리브영은 규칙이 없어 미분류로 남아 "다시 분류" 버튼이 보인다.
   // 별빛헤어는 맞는 칸이 없어 AI가 기타 지출로 둔 셈이라 카테고리 화면에 "기타 다시 분류"가 보인다(8장, 결정 F9).
+  const categoryIds = new Map(
+    (await db.select({ id: categories.id, name: categories.name }).from(categories).where(eq(categories.userId, userId))).map((c) => [c.name, c.id]),
+  );
   const categoryId = (name: string) => {
-    const found = db.select({ id: categories.id }).from(categories).where(eq(categories.name, name)).get();
-    if (!found) throw new Error(`카테고리 ${name}이(가) 없습니다.`);
-    return found.id;
+    const found = categoryIds.get(name);
+    if (found == null) throw new Error(`카테고리 ${name}이(가) 없습니다.`);
+    return found;
   };
   const rules: [string, string, "ai" | "user"][] = [
     ["월세", "주거·관리비", "ai"],
@@ -149,19 +169,25 @@ export function seedDevData(db: Db, now = today()) {
     ["인터파크 티켓", "여가·여행", "ai"],
     ["인터파크 티켓 취소", "여가·여행", "ai"],
   ];
-  for (const [description, name, source] of rules) {
-    const key = matchKeyOf({ description, method: null })!.key;
-    db.insert(categoryRules).values({ matchKey: key, categoryId: categoryId(name), source, updatedAt: `${firstMonth}-01T00:00:00.000Z` }).run();
-  }
+  await db.insert(categoryRules).values(
+    rules.map(([description, name, source]) => ({
+      userId,
+      matchKey: matchKeyOf({ description, method: null })!.key,
+      categoryId: categoryId(name),
+      source,
+      updatedAt: `${firstMonth}-01T00:00:00.000Z`,
+    })),
+  );
 
   // 수동 거래·이체가 업로드 기간에 걸려 확인을 묻지 않도록 업로드를 먼저 넣는다.
-  upload(salary, "hana_bank", "하나 급여통장", salaryUploads);
-  const cardIds = upload(card, "hana_card", "하나카드", cardUploads);
+  await upload(salary, "hana_bank", salaryKey, "하나 급여통장", salaryUploads);
+  const cardIds = await upload(card, "hana_card", null, "하나카드", cardUploads);
   // 비상금 이자와 급여통장에서 받는 돈. 실제 잔액은 기록 안 된 입금 1만 원만큼 커서, 첫 이자 날에 +1만 원 보정 거래가 생긴다.
   // 받는 돈을 이자보다 뒤(23일)에 두는 것은, 앞에 두면 보정이 그 날로 옮겨가기 때문이다(보정은 잔액이 있는 첫 거래 날에 생긴다).
-  upload(
+  await upload(
     savings,
     "kakao_bank",
+    savingsKey,
     "카카오 비상금",
     [
       { day: 21, amount: 4_100, description: "이자", method: "이자" },
@@ -175,7 +201,7 @@ export function seedDevData(db: Db, now = today()) {
     // 대출 상환: 급여통장 → 대출 이체
     const repay = date(25);
     if (repay) {
-      createTransfer(db, {
+      await createTransfer(db, userId, {
         fromAccountId: salary,
         toAccountId: loan,
         date: repay,
@@ -189,7 +215,7 @@ export function seedDevData(db: Db, now = today()) {
     const cash = date(14);
     if (cash) {
       // 수동 거래는 폼에서 고른 카테고리가 user로 붙는다(5단계 파일 2장).
-      createTransaction(db, {
+      await createTransaction(db, userId, {
         accountId: salary,
         date: cash,
         time: null,
@@ -202,7 +228,7 @@ export function seedDevData(db: Db, now = today()) {
   }
 
   // 비상금으로 옮기는 이체(첫 달)
-  createTransfer(db, {
+  await createTransfer(db, userId, {
     fromAccountId: salary,
     toAccountId: savings,
     date: `${firstMonth}-11`,
@@ -216,7 +242,7 @@ export function seedDevData(db: Db, now = today()) {
   // 첫 달은 오늘보다 앞이라 카드 거래가 모두 들어가 있다. 첫 달 둘째·셋째 거래는 이마트·스타벅스다.
   const edited = cardIds[1];
   if (edited) {
-    updateTransaction(db, edited, {
+    await updateTransaction(db, userId, edited, {
       accountId: card,
       date: `${firstMonth}-07`,
       time: "19:02",
@@ -226,7 +252,8 @@ export function seedDevData(db: Db, now = today()) {
     });
   }
   const deleted = cardIds[2];
-  if (deleted) setTransactionDeleted(db, deleted, true);
+  if (deleted) await setTransactionDeleted(db, userId, deleted, true);
 
   return { accounts: { salary, savings, loan, card } };
 }
+
