@@ -52,21 +52,23 @@ export function iconHrefs(html: string): string[] {
 /** 공개 페이지 HTML이 규칙에 맞는지. 어긋난 항목을 돌려준다(값이 아니라 항목 이름). */
 export function checkPublicPage(html: string, path: string): string[] {
   const bad: string[] = [];
-  const once = (label: string, list: string[], expected?: string) => {
+  const once = (label: string, list: string[], expected?: string, same = (a: string, b: string) => a === b) => {
     if (list.length !== 1) bad.push(`${label} ${list.length}개(1개여야 합니다)`);
-    else if (expected !== undefined && list[0] !== expected) bad.push(`${label} 값이 다릅니다`);
+    else if (expected !== undefined && !same(list[0], expected)) bad.push(`${label} 값이 다릅니다`);
   };
+  // 주소는 정규화해 견준다. Next.js는 루트 주소를 끝의 "/" 없이 쓴다(https://wonbook.vercel.app = https://wonbook.vercel.app/).
+  const sameUrl = (a: string, b: string) => URL.canParse(a) && new URL(a).href === new URL(b).href;
   const titles = [...html.matchAll(/<title\b[^>]*>([^<]*)<\/title>/g)].map((m) => decode(m[1]));
   once("title", titles, PAGE_TITLES[path]);
   if (!/<html\b[^>]*\blang="ko"/.test(html)) bad.push('<html lang="ko">가 없습니다');
   if (isNoindex(html)) bad.push("noindex가 있습니다");
   const url = absoluteUrl(path);
   once("description", values(html, "meta", "name", "description", "content"), SITE_DESCRIPTION);
-  once("canonical", values(html, "link", "rel", "canonical", "href"), url);
+  once("canonical", values(html, "link", "rel", "canonical", "href"), url, sameUrl);
   const og = (p: string, v: string) => once(`og:${p}`, values(html, "meta", "property", `og:${p}`, "content"), v);
   og("title", SITE_NAME);
   og("description", SITE_DESCRIPTION);
-  og("url", url);
+  once("og:url", values(html, "meta", "property", "og:url", "content"), url, sameUrl);
   og("site_name", SITE_NAME);
   og("locale", "ko_KR");
   og("type", "website");

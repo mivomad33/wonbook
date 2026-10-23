@@ -86,6 +86,14 @@ describe("배포 결과물 검사 - 공개 페이지", () => {
     expect(checkJsonLd(html).length).toBeGreaterThan(0);
   });
 
+  it("canonical·og:url은 정규화해 견준다: 루트는 끝 \"/\"가 없어도 같고, 다른 주소는 잡는다", () => {
+    const page = (url: string) => `<html lang="ko"><head><link rel="canonical" href="${url}"/><meta property="og:url" content="${url}"/></head></html>`;
+    const urlErrors = (html: string) => checkPublicPage(html, "/").filter((b) => b.startsWith("canonical") || b.startsWith("og:url"));
+    expect(urlErrors(page("https://wonbook.vercel.app"))).toEqual([]);
+    expect(urlErrors(page("https://wonbook.vercel.app/"))).toEqual([]);
+    expect(urlErrors(page("https://wonbook.vercel.app/home"))).toEqual(["canonical 값이 다릅니다", "og:url 값이 다릅니다"]);
+  });
+
   it("sitemap은 원본 모듈의 주소 목록과 같아야 한다", () => {
     const xml = (urls: string[]) => `<urlset>${urls.map((u) => `<url><loc>${u}</loc></url>`).join("")}</urlset>`;
     expect(checkSitemap(xml(SITEMAP_URLS))).toEqual([]);
