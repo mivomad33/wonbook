@@ -114,5 +114,10 @@ export function createClaudeClassifier(client = new Anthropic()): Classifier {
 
 // 앱이 쓰는 분류기. API 키(.env.local의 ANTHROPIC_API_KEY)가 없으면 null이라 저장된 분류만 붙는다(5.2).
 export function classifierFromEnv(): Classifier | null {
+  // E2E 테스트용 가짜 분류(비용 없음). 개발 서버에서만 켜진다(운영 빌드는 NODE_ENV=production).
+  if (process.env.WONBOOK_FAKE_CLASSIFIER === "1" && process.env.NODE_ENV !== "production") return fakeClassifier;
   return process.env.ANTHROPIC_API_KEY ? createClaudeClassifier() : null;
 }
+
+// 들어온 돈은 "기타 수입", 나간 돈은 "기타 지출"로 둔다.
+const fakeClassifier: Classifier = async (items) => new Map(items.map((it) => [it.id, it.direction === "in" ? "기타 수입" : "기타 지출"]));

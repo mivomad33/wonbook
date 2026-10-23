@@ -10,6 +10,8 @@ export async function readUploadFile(file: File, password?: string): Promise<Rea
   if (encrypted && !password) return { status: "needs_password" };
   try {
     const parsed = await parseFile(data, { password });
+    // 개발 서버에서만: 브라우저에서 읽은 결과를 실제 샘플 확인(test/real-samples)이 서버 파서 결과와 견주게 남긴다(4.3-1). 운영 빌드에서는 빠진다.
+    if (process.env.NODE_ENV === "development") ((window as unknown as { __wonbookParsed?: unknown[] }).__wonbookParsed ??= []).push({ name: file.name, parsed });
     return { status: "ok", file: await toUploadedFile(file.name, parsed) };
   } catch (e) {
     if (!(e instanceof ParseError)) return { status: "error", message: "파일을 읽을 수 없습니다(파일이 손상됐을 수 있습니다)" };

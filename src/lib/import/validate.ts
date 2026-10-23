@@ -17,7 +17,7 @@ const date = z.iso.date();
 const text = z.string().max(MAX_TEXT_LENGTH);
 const money = z.number().int().min(-Number.MAX_SAFE_INTEGER).max(Number.MAX_SAFE_INTEGER);
 
-const transactionSchema = z.object({
+const transactionSchema = z.strictObject({
   date,
   time: z
     .string()
@@ -31,7 +31,7 @@ const transactionSchema = z.object({
   balanceAfter: money.nullable(),
 });
 
-const fileSchema = z.object({
+const fileSchema = z.strictObject({
   fileName: text.min(1),
   institution: z.enum(INSTITUTIONS),
   accountKey: accountKeyRefSchema.nullable(),
@@ -61,6 +61,8 @@ const FIELD_LABELS: Record<string, string> = {
 };
 
 function describeIssue(issue: z.core.$ZodIssue): string {
+  // 정해진 칸 밖의 값(계정 id 등)은 받지 않는다(4.3-2).
+  if (issue.code === "unrecognized_keys") return "업로드 값에 알 수 없는 칸이 있습니다. 파일을 다시 올려 주세요.";
   const field = [...issue.path].reverse().find((p): p is string => typeof p === "string" && p in FIELD_LABELS);
   const label = field ? FIELD_LABELS[field] : "형식";
   if (issue.code === "too_big" && field && field !== "amount" && field !== "balanceAfter") {

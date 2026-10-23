@@ -74,6 +74,11 @@ describe("받은 업로드 값 검사(4.3-2)", () => {
     expect(rejects("not an array")).toMatch(/형식/);
   });
 
+  it("정해진 칸 밖의 값(계정 id 등)이 든 요청을 거부한다", async () => {
+    expect(rejects(await request(undefined, { accountId: 1 } as never))).toMatch(/알 수 없는 칸/);
+    expect(rejects(await request([{ ...tx(), accountId: 1 } as never]))).toMatch(/알 수 없는 칸/);
+  });
+
   it("글 칸의 긴 숫자를 다시 가린다(가린 값은 그대로다)", async () => {
     const [file] = parseUploadRequest(
       await request([tx({ description: "이체 111-222222-44444", memo: "****4444", method: "12345 67890" })], { fileName: "KB_123456-01-234567.xls" }),
