@@ -1,6 +1,10 @@
 // 여러 폼(계정, 거래, 이체)이 같이 쓰는 칸 검사(2단계 파일 4장). 폼(클라이언트)도 불러 쓰므로 DB 코드를 두지 않는다.
 import { z } from "zod";
 
+// NUL 글자(U+0000)를 지운다. Postgres 글 칸은 이 글자를 저장하지 못해, 그대로 두면 검사를 지나 DB에서 서버 오류가 난다.
+// 사람이 뜻을 담아 넣는 글자가 아니므로 오류로 돌려보내지 않고 지운다(업로드 파일의 셀에 섞여 들어오는 경우도 같다).
+export const stripNul = (v: unknown) => (typeof v === "string" ? v.replaceAll("\u0000", "") : v);
+
 // 빈 칸과 폼에서 숨긴 칸(FormData에 없음)은 null로 본다.
 export const emptyToNull = (v: unknown) => (v == null || (typeof v === "string" && v.trim() === "") ? null : v);
 
@@ -26,4 +30,4 @@ export const timeSchema = z.preprocess(
 );
 
 // 앞뒤 공백을 지운 선택 글. 비우면 null.
-export const optionalTextSchema = z.preprocess(emptyToNull, z.string().trim().nullable());
+export const optionalTextSchema = z.preprocess((v) => emptyToNull(stripNul(v)), z.string().trim().nullable());

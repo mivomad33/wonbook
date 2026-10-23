@@ -5,7 +5,7 @@ import { saveAccountAction } from "@/app/(app)/accounts/actions";
 import { saveCategoryAction } from "@/app/(app)/categories/actions";
 import { saveTransactionAction } from "@/app/(app)/transactions/actions";
 import { commitUpload, saveKakaoPasswordAction, stageUploadPart } from "@/app/(app)/upload/actions";
-import { transactions } from "@/db/schema";
+import { accounts, transactions } from "@/db/schema";
 import { MAX_PARTS, splitIntoParts, utf8Bytes } from "@/lib/import/split";
 import type { UploadRequestFile } from "@/lib/import/payload";
 import { createRequire } from "node:module";
@@ -79,6 +79,24 @@ describe("화면 입력란 상한(4.10-4)", () => {
   it("100자는 통과한다", async () => {
     await loginAs(me);
     expect(await rejected(() => saveCategoryAction({}, form({ name: "가".repeat(100), group: "expense" })))).toBe(false);
+  });
+});
+
+describe("NUL 글자(Postgres가 저장할 수 없는 글자)", () => {
+  it("계정 이름의 NUL은 지우고 저장한다(서버 오류가 나지 않는다)", async () => {
+    await loginAs(me);
+    const r = await saveAccountAction(null, { name: "널\u0000확인 통장", kind: "asset", institution: null, accountKey: null, openingBalance: 0, openingDate: null });
+    expect(r).toEqual({ ok: true });
+    const rows = await db().select({ name: accounts.name }).from(accounts).where(eq(accounts.userId, me));
+    expect(rows.map((x) => x.name)).toContain("널확인 통장");
+  });
+
+  it("업로드 거래 내용의 NUL은 지우고 반영한다", async () => {
+    await loginAs(me);
+    const { result } = await send(await fileWith([tx({ date: "2026-08-02", description: "널\u0000가게" })], { period: { start: "2026-08-01", end: "2026-08-31" } }));
+    expect(result.ok && result.files[0].status).toBe("applied");
+    const rows = await db().select({ d: transactions.description }).from(transactions).where(eq(transactions.userId, me));
+    expect(rows.map((x) => x.d)).toContain("널가게");
   });
 });
 

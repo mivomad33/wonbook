@@ -1,13 +1,13 @@
 // 거래·이체 폼 검사(2단계 파일 3장). 폼(클라이언트)과 서버 액션이 같이 쓰므로 DB 코드를 두지 않는다.
 import { z } from "zod";
-import { dateSchema, emptyToNull, idSchema, moneySchema, optionalTextSchema, timeSchema } from "@/lib/form-fields";
+import { dateSchema, emptyToNull, idSchema, moneySchema, optionalTextSchema, stripNul, timeSchema } from "@/lib/form-fields";
 
 // 수입/지출(카드 계정이면 환불/사용). 저장할 때 지출·사용이면 음수로 바꾼다.
 export const DIRECTIONS = ["in", "out"] as const;
 export type Direction = (typeof DIRECTIONS)[number];
 
 const positiveMoney = moneySchema.refine((v) => v > 0, "0보다 큰 금액을 입력하세요.");
-const descriptionSchema = z.preprocess((v) => v ?? "", z.string().trim());
+const descriptionSchema = z.preprocess((v) => stripNul(v ?? ""), z.string().trim());
 
 export const transactionFormSchema = z
   .object({

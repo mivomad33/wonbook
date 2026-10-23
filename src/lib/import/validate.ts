@@ -1,6 +1,7 @@
 // 서버가 받은 업로드 값 검사(4.3-2). 브라우저가 보낸 값을 그대로 믿지 않는다.
 // 형식(날짜, 정수 금액, 0이 아닌 금액, 칸 길이)과 개수를 보고, 글 칸의 긴 숫자를 다시 가린다(2.2).
 import { z } from "zod";
+import { stripNul } from "@/lib/form-fields";
 import { INSTITUTIONS } from "@/db/schema";
 import { accountKeyRefSchema } from "@/lib/privacy/account-key";
 import { maskAccountNumbers } from "@/lib/privacy/mask";
@@ -14,7 +15,7 @@ export const MAX_TEXT_LENGTH = 200;
 export const MAX_FILES_PER_REQUEST = 50;
 
 const date = z.iso.date();
-const text = z.string().max(MAX_TEXT_LENGTH);
+const text = (min = 0) => z.preprocess(stripNul, z.string().min(min).max(MAX_TEXT_LENGTH));
 const money = z.number().int().min(-Number.MAX_SAFE_INTEGER).max(Number.MAX_SAFE_INTEGER);
 
 const transactionSchema = z.strictObject({
@@ -24,15 +25,15 @@ const transactionSchema = z.strictObject({
     .regex(/^([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?$/)
     .nullable(),
   amount: money.refine((v) => v !== 0),
-  description: text,
-  method: text.nullable(),
-  memo: text.nullable(),
-  cardLabel: text.nullable(),
+  description: text(),
+  method: text().nullable(),
+  memo: text().nullable(),
+  cardLabel: text().nullable(),
   balanceAfter: money.nullable(),
 });
 
 const fileSchema = z.strictObject({
-  fileName: text.min(1),
+  fileName: text(1),
   institution: z.enum(INSTITUTIONS),
   accountKey: accountKeyRefSchema.nullable(),
   period: z.object({ start: date, end: date }).refine((p) => p.start <= p.end),

@@ -74,6 +74,12 @@ describe("받은 업로드 값 검사(4.3-2)", () => {
     expect(rejects("not an array")).toMatch(/형식/);
   });
 
+  it("글 칸과 파일 이름의 NUL 글자를 지운다(Postgres에 저장할 수 없다)", async () => {
+    const [f] = parseUploadRequest(await request([tx({ description: "가\u0000게", memo: "\u0000", method: "체\u0000크", cardLabel: null })], { fileName: "하나\u0000.xls" }));
+    expect(f.fileName).toBe("하나.xls");
+    expect(f.transactions[0]).toMatchObject({ description: "가게", memo: "", method: "체크", cardLabel: null });
+  });
+
   it("정해진 칸 밖의 값(계정 id 등)이 든 요청을 거부한다", async () => {
     expect(rejects(await request(undefined, { accountId: 1 } as never))).toMatch(/알 수 없는 칸/);
     expect(rejects(await request([{ ...tx(), accountId: 1 } as never]))).toMatch(/알 수 없는 칸/);

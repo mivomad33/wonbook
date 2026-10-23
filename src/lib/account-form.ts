@@ -3,7 +3,7 @@
 // → 서버 액션 → accountInputSchema(서버 다시 검사) → lib/accounts.
 import { z } from "zod";
 import { ACCOUNT_KINDS, INSTITUTIONS, type AccountKind, type Institution } from "@/db/schema";
-import { dateSchema, emptyToNull, moneySchema, optionalTextSchema } from "@/lib/form-fields";
+import { dateSchema, emptyToNull, moneySchema, optionalTextSchema, stripNul } from "@/lib/form-fields";
 import { toDisplayBalance } from "@/lib/format";
 import { normalizeAccountKey } from "@/lib/import/account-key";
 import { accountKeyRefSchema, toAccountKeyRef } from "@/lib/privacy/account-key";
@@ -33,7 +33,7 @@ function checkInstitution(v: { kind: AccountKind; institution: Institution | nul
 // externalKey는 화면에서 친 계좌번호를 파일과 같은 규칙으로 정규화한 값이다. 서버로 보내기 전에 toAccountInput으로 바꾼다.
 export const accountFormSchema = z
   .object({
-    name: z.string().trim().min(1, "이름을 입력하세요."),
+    name: z.preprocess(stripNul, z.string().trim().min(1, "이름을 입력하세요.")),
     kind: z.enum(ACCOUNT_KINDS, "종류를 고르세요."),
     institution: institutionField,
     externalKey: optionalTextSchema,
@@ -61,7 +61,7 @@ export type AccountFormValues = z.output<typeof accountFormSchema>;
 // accountKey: { digest, last4 }면 그 식별값으로 저장, null이면 식별값 없음, 빠지면(undefined) 수정 때 저장된 값을 그대로 둔다.
 export const accountInputSchema = z
   .object({
-    name: z.string().trim().min(1, "이름을 입력하세요.").max(100, "이름은 100자까지입니다."),
+    name: z.preprocess(stripNul, z.string().trim().min(1, "이름을 입력하세요.").max(100, "이름은 100자까지입니다.")),
     kind: z.enum(ACCOUNT_KINDS, "종류를 고르세요."),
     institution: institutionField,
     accountKey: accountKeyRefSchema.nullable().optional(),
