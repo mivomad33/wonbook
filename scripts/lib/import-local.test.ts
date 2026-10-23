@@ -66,7 +66,8 @@ function fakeLocalDb(): string {
 const NOW = new Date("2026-10-23T03:00:00Z");
 const EMAIL = "admin@test.local";
 
-describe("내 데이터 이전(4.8-3)", () => {
+// 프로세스 안 Postgres를 두 개(이전 대상, 비교 기준) 만들어 CI 러너에서는 기본 5초를 넘을 수 있다.
+describe("내 데이터 이전(4.8-3)", { timeout: 30_000 }, () => {
   it("관리자 계정을 만들어 옮기고, 계좌번호는 해시·끝 4자리로, 글 칸의 계좌번호는 가린다", async () => {
     const db = await createTestDb();
     const local = openLocal(fakeLocalDb());
