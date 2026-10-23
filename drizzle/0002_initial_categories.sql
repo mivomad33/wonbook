@@ -1,0 +1,28 @@
+-- 처음 카테고리(5단계 파일 1.2 버전 B, 9장). 그 뒤로는 카테고리 화면에서 고친다.
+-- group은 SQL 예약어라 따옴표로 감싼다. sort_order는 묶음 안의 순서다.
+INSERT INTO `categories` (`name`, "group", `sort_order`, `created_at`) VALUES
+	('장보기', 'expense', 1, strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+	('외식·배달', 'expense', 2, strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+	('카페·간식', 'expense', 3, strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+	('생활용품', 'expense', 4, strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+	('쇼핑·의류', 'expense', 5, strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+	('주거·관리비', 'expense', 6, strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+	('통신', 'expense', 7, strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+	('교통·차량', 'expense', 8, strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+	('의료·건강', 'expense', 9, strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+	('육아·교육', 'expense', 10, strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+	('여가·여행', 'expense', 11, strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+	('구독·디지털', 'expense', 12, strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+	('세금·공과금', 'expense', 13, strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+	('보험', 'expense', 14, strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+	('경조사·기부', 'expense', 15, strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+	('기타 지출', 'expense', 16, strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+	('급여', 'income', 1, strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+	('정부 지원', 'income', 2, strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+	('부수입', 'income', 3, strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+	('이자·배당', 'income', 4, strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+	('환급·캐시백', 'income', 5, strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+	('기타 수입', 'income', 6, strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+	('카드대금', 'move', 1, strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+	('내 계좌·페이 이동', 'move', 2, strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+	('개인 송금', 'move', 3, strftime('%Y-%m-%dT%H:%M:%fZ', 'now'));
