@@ -8,7 +8,7 @@ export const FEEDBACK_HREF = `mailto:mivomad33@gmail.com?subject=${encodeURIComp
 
 /** 개발 서버가 첫 연결 때 다시 읽을 수 있어 잠시 기다린 뒤 하이드레이션을 확인한다. */
 export async function ready(page: Page): Promise<void> {
-  await page.waitForTimeout(800);
+  await page.waitForTimeout(2000);
   await page.waitForFunction(() => Boolean((window as unknown as { next?: { router?: unknown } }).next?.router));
 }
 

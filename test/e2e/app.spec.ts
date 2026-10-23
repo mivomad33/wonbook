@@ -53,9 +53,15 @@ test("겹치는 파일을 올린 뒤 되돌리면 올리기 전으로 돌아간�
 
   await open(page, "/upload");
   const recent = page.locator("section", { has: page.getByRole("heading", { name: "최근 업로드 기록" }) });
+  await expect(recent).toContainText("hana-2.xlsx");
   await recent.getByRole("button", { name: "되돌리기" }).first().click();
-  await page.getByRole("alertdialog").or(page.getByRole("dialog")).getByRole("button", { name: "되돌리기" }).click();
-  await expect(recent.getByRole("button", { name: "되돌리기" })).toHaveCount(1);
+  const dialog = page.getByRole("alertdialog").filter({ hasText: "이 업로드를 되돌리시겠습니까?" });
+  await dialog.getByRole("button", { name: "되돌리기" }).click();
+  await expect(dialog).toBeHidden();
+  await expect(recent).not.toContainText("hana-2.xlsx");
+  // 되돌린 업로드는 다시 되돌릴 수 없고, 그 앞 업로드의 되돌리기 자료는 새 업로드 때 지워졌다(4.3-5)
+  await expect(recent).toContainText("되돌릴 수 없음");
+  await expect(recent.getByRole("button", { name: "되돌리기" })).toHaveCount(0);
 
   await open(page, "/transactions?month=all");
   await expect(page.getByRole("row").filter({ hasText: "가짜카페" })).toHaveCount(0);

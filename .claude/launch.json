@@ -4,14 +4,37 @@
     {
       "name": "dev",
       "runtimeExecutable": "pnpm",
-      "runtimeArgs": ["dev"],
+      "runtimeArgs": [
+        "dev"
+      ],
       "port": 3000
     },
     {
       "name": "start",
       "runtimeExecutable": "pnpm",
-      "runtimeArgs": ["start", "-p", "3010"],
+      "runtimeArgs": [
+        "start",
+        "-p",
+        "3010"
+      ],
       "port": 3010
+    },
+    {
+      "name": "dev-bad-db",
+      "runtimeExecutable": "env",
+      "runtimeArgs": [
+        "DATABASE_URL=postgresql://wonbook:wrong@127.0.0.1:1/none",
+        "NEXT_DIST_DIR=.next-err",
+        "pnpm",
+        "exec",
+        "next",
+        "dev",
+        "-H",
+        "127.0.0.1",
+        "-p",
+        "3200"
+      ],
+      "port": 3200
     }
   ]
 }
