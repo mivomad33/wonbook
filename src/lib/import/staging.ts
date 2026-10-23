@@ -1,6 +1,6 @@
 // 나눠 보낸 업로드 조각 모으기(4.3-2). 한 요청은 Vercel 본문 한도(4.5MB)보다 작아야 해서,
 // 브라우저가 업로드 값(JSON 글)을 조각으로 나눠 stagePart로 보내고 takeStaged로 한 번에 꺼내 반영한다.
-// 조각은 그 사용자의 것만 꺼낸다. 꺼내면 지우고, 한 시간 넘게 남은 조각은 그때 함께 지운다.
+// 조각은 그 사용자의 것만 꺼낸다. 꺼내면 지우고, 한 시간 넘게 남은 조각(업로드하다 그만둔 것)은 누구의 것이든 그때 함께 지운다(저장 최소화, 2.2).
 import { and, asc, eq, lt } from "drizzle-orm";
 import type { DbOrTx } from "@/db/client";
 import { uploadStaging } from "@/db/schema";
@@ -29,7 +29,7 @@ export async function takeStaged(db: DbOrTx, userId: number, token: string, tota
     .where(and(eq(uploadStaging.userId, userId), eq(uploadStaging.token, token)))
     .orderBy(asc(uploadStaging.part));
   await db.delete(uploadStaging).where(and(eq(uploadStaging.userId, userId), eq(uploadStaging.token, token)));
-  await db.delete(uploadStaging).where(and(eq(uploadStaging.userId, userId), lt(uploadStaging.createdAt, new Date(now.getTime() - STALE_MS))));
+  await db.delete(uploadStaging).where(lt(uploadStaging.createdAt, new Date(now.getTime() - STALE_MS)));
   if (rows.length !== total || rows.some((r, i) => r.part !== i)) throw new UserError("업로드 조각이 빠졌습니다. 다시 올려 주세요.");
   try {
     return JSON.parse(rows.map((r) => r.body).join(""));

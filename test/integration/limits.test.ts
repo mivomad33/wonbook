@@ -8,7 +8,13 @@ import { commitUpload, saveKakaoPasswordAction, stageUploadPart } from "@/app/(a
 import { transactions } from "@/db/schema";
 import { MAX_PARTS, splitIntoParts, utf8Bytes } from "@/lib/import/split";
 import type { UploadRequestFile } from "@/lib/import/payload";
+import { createRequire } from "node:module";
 import { db, dbFingerprint, loginAs, newUser, rejected } from "./helpers";
+
+// 브라우저가 서버 동작을 부를 때 쓰는 인코딩(React encodeReply, Next.js에 들어 있는 것)으로 요청 본문을 만든다.
+const { encodeReply } = createRequire(import.meta.url)("next/dist/compiled/react-server-dom-webpack/client.node.js") as {
+  encodeReply: (args: unknown[]) => Promise<string | FormData>;
+};
 import { bankFile, seedUser } from "./fixtures";
 
 const form = (values: Record<string, string>) => {
@@ -30,8 +36,9 @@ async function send(files: unknown) {
   const parts = splitIntoParts(JSON.stringify(files));
   const sizes: number[] = [];
   for (const [i, body] of parts.entries()) {
-    // 서버 동작 요청 본문은 인자 배열의 JSON이다(React encodeReply). 문자열 인자는 따옴표·역슬래시가 이스케이프된다.
-    sizes.push(utf8Bytes(JSON.stringify([token, i, body])));
+    const encoded = await encodeReply([token, i, body]);
+    if (typeof encoded !== "string") throw new Error("서버 동작 본문이 문자열이 아닙니다");
+    sizes.push(utf8Bytes(encoded));
     const r = await stageUploadPart(token, i, body);
     if (!r.ok) return { result: r, sizes };
   }

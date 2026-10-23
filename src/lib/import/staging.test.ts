@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { uploadStaging } from "@/db/schema";
 import { createTestDb, createTestUser } from "@/db/test-db";
 import { MAX_PART_BYTES, splitIntoParts, stagePart, takeStaged } from "./staging";
 
@@ -31,5 +32,16 @@ describe("업로드 조각", () => {
     await expect(stagePart(db, a, "short", 0, "x")).rejects.toThrow();
     await stagePart(db, a, TOKEN, 0, '{"a":');
     await expect(takeStaged(db, a, TOKEN, 2)).rejects.toThrow("빠졌습니다");
+  });
+
+  it("한 시간 넘게 남은 조각은 누구의 것이든 다음 업로드 때 지운다", async () => {
+    const db = await createTestDb();
+    const a = await createTestUser(db);
+    const b = await createTestUser(db);
+    await stagePart(db, b, "tok_left_by_user_b1", 0, "[]");
+    await stagePart(db, a, TOKEN, 0, "[]");
+    const later = new Date(Date.now() + 2 * 60 * 60 * 1000);
+    expect(await takeStaged(db, a, TOKEN, 1, later)).toEqual([]);
+    expect(await db.select().from(uploadStaging)).toEqual([]);
   });
 });
