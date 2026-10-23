@@ -4,6 +4,7 @@ samples/
 # 환경 변수 (Claude API 키 등)
 .env
 .env.*
+!.env.example
 
 # macOS
 .DS_Store

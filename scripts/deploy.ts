@@ -13,9 +13,8 @@ import os from "node:os";
 import path from "node:path";
 import { SITE_URL } from "@/config";
 import { ROOT } from "./checks/basis";
+import { VERCEL } from "./lib/vercel";
 
-/** Vercel CLI 버전(README에도 적는다) */
-export const VERCEL = "vercel@65.1.0";
 const PROJECT_JSON = path.join(ROOT, ".vercel/project.json");
 /** 배포 뒤 점검의 종료 코드: 사용 분석 스크립트만 실패 */
 const SMOKE_ANALYTICS_ONLY = 3;

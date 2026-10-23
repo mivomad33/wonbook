@@ -22,7 +22,11 @@
     "check:output-self-test": "tsx scripts/checks/output-check.ts --self-test",
     "smoke": "tsx scripts/smoke.ts",
     "release": "tsx scripts/deploy.ts",
-    "prepare": "git rev-parse --git-dir >/dev/null 2>&1 && git config core.hooksPath .githooks || true"
+    "prepare": "git rev-parse --git-dir >/dev/null 2>&1 && git config core.hooksPath .githooks || true",
+    "test:e2e": "E2E_DATABASE_URL=$(tsx test/setup-db.ts) playwright test",
+    "db:import-local": "tsx scripts/import-local.ts",
+    "db:import-rehearsal": "tsx scripts/import-rehearsal.ts",
+    "check:db": "tsx scripts/checks/db-check.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "0.135.0",
