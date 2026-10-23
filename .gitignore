@@ -1,0 +1,26 @@
+# 금융사 거래 내역 샘플 (실제 계좌·거래 정보 포함)
+samples/
+
+# 환경 변수 (Claude API 키 등)
+.env
+.env.*
+
+# macOS
+.DS_Store
+
+# 의존성·빌드 결과
+/node_modules
+/.next/
+/out/
+/coverage
+*.tsbuildinfo
+next-env.d.ts
+
+# 로컬 DB(실제 거래 정보 포함)
+/data/
+
+# 비공개 문서(별도 로컬 git 저장소로 관리한다)
+/docs/
+
+# 개인 도구 설정
+/.serena/
