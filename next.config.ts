@@ -9,6 +9,8 @@ export default function nextConfig(phase: string): NextConfig {
     pageExtensions: phase === PHASE_DEVELOPMENT_SERVER ? ["dev.ts", "tsx", "ts"] : ["tsx", "ts"],
     // E2E 테스트는 확인용 개발 서버와 함께 띄울 수 있게 다른 폴더를 쓴다(next dev는 폴더마다 하나만 뜬다).
     distDir: process.env.NEXT_DIST_DIR || ".next",
+    // 개발 서버가 서버 동작 호출을 인자와 함께 터미널에 찍지 않게 한다(카카오뱅크 암호, 거래 내용이 그대로 보인다, 4.7-3).
+    logging: { serverFunctions: false },
     // 업로드는 브라우저가 파일을 읽어 거래만 나눠 보낸다(4.3-1). 한 요청은 Vercel 한도 4.5MB보다 작게 보낸다.
     experimental: {
       serverActions: {

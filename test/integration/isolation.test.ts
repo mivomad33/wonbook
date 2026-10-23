@@ -32,27 +32,45 @@ beforeAll(async () => {
 });
 
 describe("B가 A의 id로 보낸 요청(4.2-2)", () => {
-  const attempts = (): [string, () => Promise<unknown>][] => [
-    ["계정 수정", () => saveAccountAction(A.accountId, { name: "바꿈", kind: "asset", institution: null, accountKey: null, openingBalance: 0, openingDate: null })],
-    ["계정 삭제", () => deleteAccountAction(A.accountId)],
-    ["계정 순서", () => moveAccountAction(A.accountId, "down")],
-    ["A 계정에 거래 넣기", () => saveTransactionAction({}, form({ accountId: String(A.accountId), date: "2026-07-06", direction: "out", amount: "1000" }))],
-    ["A 거래 수정", () => saveTransactionAction({}, form({ id: String(A.txId), accountId: String(B.accountId), date: "2026-07-06", direction: "out", amount: "1000" }))],
-    ["A 계정에서 이체", () => saveTransferAction({}, form({ fromAccountId: String(A.accountId), toAccountId: String(B.accountId), date: "2026-07-06", amount: "1000" }))],
-    ["A 거래 삭제 표시", () => setTransactionDeletedAction(A.txId, true)],
-    ["A 거래 카테고리", () => setTransactionCategoryAction(A.txId, B.foodId)],
-    ["B 거래에 A 카테고리", () => setTransactionCategoryAction(B.txId, A.foodId)],
-    ["A 카테고리 수정", () => saveCategoryAction({}, form({ id: String(A.foodId), name: "바꿈", group: "expense" }))],
-    ["A 카테고리 삭제", () => deleteCategoryAction(A.foodId)],
-    ["A 업로드 되돌리기", () => undoImportAction(A.importId)],
-    ["B 계정에 A 카테고리로 거래 넣기", () => saveTransactionAction({}, form({ accountId: String(B.accountId), date: "2026-07-06", direction: "out", amount: "1000", categoryId: String(A.foodId) }))],
+  // 거부 이유까지 본다: 형식 오류처럼 다른 이유로 막혀도 통과하지 않게, 소유 검사의 "찾을 수 없음" 문구를 기대한다.
+  const ACCOUNT = "계정을 찾을 수 없습니다";
+  const TX = "거래를 찾을 수 없습니다";
+  const CATEGORY = "카테고리를 찾을 수 없습니다";
+  type Seed = Awaited<ReturnType<typeof seedUser>>;
+  // X: 대상 데이터의 주인, Y: 요청하는 사람의 데이터
+  const attempts = (X: Seed, Y: Seed): [string, () => Promise<unknown>, string][] => [
+    ["계정 수정", () => saveAccountAction(X.accountId, { name: "바꿈", kind: "asset", institution: null, accountKey: null, openingBalance: 0, openingDate: null }), ACCOUNT],
+    ["계정 삭제", () => deleteAccountAction(X.accountId), ACCOUNT],
+    ["계정 순서", () => moveAccountAction(X.accountId, "down"), ACCOUNT],
+    ["A 계정에 거래 넣기", () => saveTransactionAction({}, form({ accountId: String(X.accountId), date: "2026-07-06", direction: "out", amount: "1000" })), ACCOUNT],
+    ["A 거래 수정", () => saveTransactionAction({}, form({ id: String(X.txId), accountId: String(Y.accountId), date: "2026-07-06", direction: "out", amount: "1000" })), TX],
+    ["A 계정에서 이체", () => saveTransferAction({}, form({ fromAccountId: String(X.accountId), toAccountId: String(Y.accountId), date: "2026-07-06", amount: "1000" })), ACCOUNT],
+    ["A 거래 삭제 표시", () => setTransactionDeletedAction(X.txId, true), TX],
+    ["A 거래 카테고리", () => setTransactionCategoryAction(X.txId, Y.foodId), TX],
+    ["B 거래에 A 카테고리", () => setTransactionCategoryAction(Y.txId, X.foodId), CATEGORY],
+    ["A 카테고리 수정", () => saveCategoryAction({}, form({ id: String(X.foodId), name: "바꿈", group: "expense" })), CATEGORY],
+    ["A 카테고리 삭제", () => deleteCategoryAction(X.foodId), CATEGORY],
+    ["A 업로드 되돌리기", () => undoImportAction(X.importId), "업로드 기록을 찾을 수 없습니다"],
+    ["B 계정에 A 카테고리로 거래 넣기", () => saveTransactionAction({}, form({ accountId: String(Y.accountId), date: "2026-07-06", direction: "out", amount: "1000", categoryId: String(X.foodId) })), CATEGORY],
   ];
 
-  it.each(attempts())("%s: 거부되고 DB가 그대로다", async (_name, call) => {
+  const names = () => attempts({} as Seed, {} as Seed).map(([name, , reason], i) => [name, i, reason] as const);
+
+  it.each(names())("%s: 소유 검사로 거부되고 DB가 그대로다", async (_name, i, reason) => {
+    const call = attempts(A, B)[i][1];
     await loginAs(b);
     const before = await dbFingerprint();
-    expect(await rejected(call)).toBe(true);
+    expect(await rejected(call, reason)).toBe(true);
     expect(await dbFingerprint()).toEqual(before);
+  });
+
+  // 같은 요청을 주인이 하면 그 문구로 막히지 않는다. 기대한 문구가 소유 검사에서만 나온다는 것을 확인한다.
+  // 요청이 데이터를 바꾸므로 경우마다 새 사용자와 데이터를 쓴다.
+  it.each(names())("%s: 주인이 같은 요청을 하면 소유 검사를 지난다", async (_name, i, reason) => {
+    const owner = await newUser("owner");
+    const O = await seedUser(owner);
+    await loginAs(owner);
+    expect(await rejected(attempts(O, O)[i][1], reason)).toBe(false);
   });
 });
 
