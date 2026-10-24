@@ -1,224 +1,188 @@
-# Wonbook
+<div align="center">
 
-금융사에서 내려받은 거래 내역 파일을 올리면 입력, 분류, 잔액 맞추기까지 알아서 끝나는 웹 가계부입니다.
+<img src="src/app/icon.svg" alt="Wonbook 로고" width="96" height="96">
 
-- 운영 주소: https://wonbook.vercel.app (로그인 없이 데모를 볼 수 있습니다)
-- 지금은 하나은행, 국민은행, 카카오뱅크, 하나카드, 국민카드, 한국투자증권(일반·ISA) 파일을 읽습니다. 다른 금융사 계좌는 수동 계정으로 씁니다.
+<h1>Wonbook</h1>
 
-## 무엇을 하는 앱인가
+**금융사 거래 내역 파일을 올리기만 하면 입력·분류·잔액 맞추기까지 끝나는 웹 가계부**
 
-- 금융사 파일(xls, xlsx, html, 암호 걸린 xlsx)을 **브라우저에서** 읽고, 읽은 거래만 서버로 보냅니다. 원본 파일은 서버로 가지 않습니다.
-- 같은 기간을 다시 올리면 그 기간을 덮어쓰고, 직접 손댄 거래는 지우기 전에 확인합니다. 마지막 업로드는 되돌릴 수 있습니다.
-- 파일의 거래 후 잔액과 계산한 잔액이 다르면 보정 거래를 자동으로 넣습니다.
-- 거래 내용으로 카테고리를 자동 분류합니다(Claude API). 한 번 고친 분류는 같은 가맹점에 다시 씁니다.
-- 자산 현황, 월별 수입/지출, 거래 목록, 계정·카테고리 관리, 거래 CSV 내보내기, 탈퇴를 제공합니다.
-- 개인정보: 계좌번호는 서버 키로 만든 해시와 끝 4자리만 저장하고, 거래 내용에 든 긴 계좌번호는 가립니다. 카카오뱅크 파일 암호는 암호화해 저장합니다.
+[![CI](https://github.com/mivomad33/wonbook/actions/workflows/ci.yml/badge.svg)](https://github.com/mivomad33/wonbook/actions/workflows/ci.yml)
+[![Live demo](https://img.shields.io/badge/demo-wonbook.vercel.app-15803d)](https://wonbook.vercel.app/demo)
+[![Next.js](https://img.shields.io/badge/Next.js-16-000000?logo=nextdotjs)](https://nextjs.org)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5-3178c6?logo=typescript&logoColor=white)](https://www.typescriptlang.org)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-Neon-4169e1?logo=postgresql&logoColor=white)](https://neon.com)
 
-기술 스택
+[운영 주소](https://wonbook.vercel.app) · [데모 보기](https://wonbook.vercel.app/demo) · [주요 기능](#주요-기능) · [동작 방식](#동작-방식) · [시작하기](#시작하기) · [개발 문서](DEVELOPMENT.md)
 
-- Next.js 16(App Router, Server Actions), React 19, TypeScript, Tailwind CSS 4, shadcn/ui(Base UI)
-- Postgres(Neon) + Drizzle ORM, 구글 로그인(OAuth + PKCE, 직접 구현)
-- Claude API(자동 분류), SheetJS·cheerio·officecrypto-tool(파일 읽기)
-- Vercel(호스팅, Web Analytics), Vitest·PGlite(단위), Neon 테스트 브랜치(통합), Playwright(E2E), GitHub Actions(CI)
+**한국어** | [English](README.en.md)
 
-## 처음 설정
+</div>
 
-- Node 24(`.nvmrc`), pnpm을 씁니다.
-- `pnpm install` 중에 better-sqlite3의 빌드 스크립트 승인(`pnpm approve-builds`)을 물어도 승인하지 않습니다. 패키지에 든 바이너리로 동작하고, 승인하면 설치가 실패합니다. better-sqlite3는 예전 로컬 DB를 옮기는 명령과 검사 명령에서만 씁니다.
-- Postgres 클라이언트 18(`pg_dump`, `pg_restore`)이 필요합니다(`brew install postgresql@18`).
-- `.env.example`을 `.env.local`로 복사해 값을 채웁니다. `.env.local`은 git과 배포에서 빠집니다.
+<br>
+
+<p align="center">
+  <img src=".github/assets/home.png" alt="자산 현황 화면" width="900">
+</p>
+
+## 소개
+
+기존 가계부 앱에서는 은행·카드·증권사의 거래를 하나씩 손으로 입력하고 정리해야 했습니다. Wonbook은 금융사에서 내려받은 거래 내역 파일을 그대로 올리면 나머지를 알아서 처리합니다.
+
+1. 금융사 사이트에서 거래 내역 파일(xls, xlsx, html)을 내려받습니다.
+2. Wonbook에 끌어다 놓습니다. 여러 파일을 한 번에 올릴 수 있습니다.
+3. 거래 입력, 중복 정리, 카테고리 분류, 잔액 맞추기가 자동으로 끝납니다.
+
+구글 계정으로 가입해 쓰고, 로그인 없이 [데모](https://wonbook.vercel.app/demo)에서 가짜 데이터로 둘러볼 수 있습니다. 앱 화면은 한국어이고 국내 금융사를 지원합니다.
+
+## 주요 기능
+
+- **브라우저에서 파일 읽기**: 금융사 파일(암호 걸린 xlsx 포함)을 브라우저에서 읽고, 읽은 거래만 서버로 보냅니다. 원본 파일은 서버로 가지 않습니다.
+- **기간 덮어쓰기**: 같은 기간을 다시 올리면 그 기간을 파일 내용으로 바꿉니다. 어디까지 올렸는지 신경 쓰지 않아도 중복되지 않고, 직접 손댄 거래가 지워질 때만 확인을 받습니다. 계정마다 마지막 업로드를 되돌릴 수 있습니다.
+- **잔액 자동 보정**: 파일의 거래 후 잔액과 계산한 잔액이 다르면 보정 거래를 넣고 알려 줍니다.
+- **AI 카테고리 분류**: 거래 내용으로 카테고리를 자동 분류합니다(Claude API). 한 번 고친 분류는 같은 가맹점에 다시 씁니다.
+- **한눈에 보는 화면**: 자산 현황, 월별 수입/지출(최근 6개월 추이, 카테고리별 비중), 날짜별로 묶은 거래 목록을 제공합니다.
+- **계정·카테고리 관리**: 파일 업로드가 없는 금융사나 빌려준 돈 같은 항목은 수동 계정으로 관리합니다. 카테고리마다 색과 아이콘을 고를 수 있습니다.
+- **내보내기와 탈퇴**: 거래를 CSV로 내보낼 수 있고, 탈퇴하면 데이터를 지웁니다.
+
+### 지원 금융사
+
+| 구분 | 금융사 |
+| --- | --- |
+| 은행 | 하나은행, 국민은행, 카카오뱅크 |
+| 카드 | 하나카드, 국민카드 |
+| 증권 | 한국투자증권(일반·ISA) |
+
+다른 금융사 계좌는 수동 계정으로 만들어 직접 입력합니다.
+
+## 화면
+
+<table>
+  <tr>
+    <td width="50%"><img src=".github/assets/monthly.png" alt="월별 수입/지출 화면"></td>
+    <td width="50%"><img src=".github/assets/transactions.png" alt="거래 목록 화면"></td>
+  </tr>
+  <tr>
+    <td align="center">월별 수입/지출: 최근 6개월 추이와 카테고리별 비중</td>
+    <td align="center">거래 목록: 날짜별 묶음과 카테고리 색</td>
+  </tr>
+  <tr>
+    <td width="50%"><img src=".github/assets/upload.png" alt="파일 업로드 화면"></td>
+    <td width="50%" align="center"><img src=".github/assets/mobile-home.png" alt="모바일 자산 현황 화면" width="220"></td>
+  </tr>
+  <tr>
+    <td align="center">파일 업로드: 여러 파일을 한 번에, 업로드 되돌리기</td>
+    <td align="center">모바일(375px)</td>
+  </tr>
+</table>
+
+## 동작 방식
+
+```mermaid
+flowchart LR
+  A["금융사 파일<br/>xls · xlsx · html"] --> B["브라우저에서 읽기<br/>원본은 브라우저에만"]
+  B -->|"읽은 거래만 전송<br/>계좌번호는 해시"| C["Server Action<br/>입력 검사"]
+  C --> D["기간 덮어쓰기<br/>그 기간을 파일 내용으로"]
+  D --> E["잔액 보정<br/>차이만큼 보정 거래"]
+  E --> F["카테고리 분류<br/>저장된 분류 → Claude API"]
+  F --> G[("Postgres")]
+```
+
+- 파일 형식은 금융사마다 다릅니다(엑셀, 확장자만 xls인 HTML, 암호 걸린 xlsx). 금융사별 파서가 같은 거래 형식으로 바꿉니다.
+- 파일 머리의 조회 기간을 그 계정의 "정답"으로 보고 기존 거래를 바꿉니다. 같은 날 같은 금액 거래처럼 하나씩 비교해서는 구분할 수 없는 경우가 있기 때문입니다.
+- 분류는 먼저 사용자가 고친 분류(같은 가맹점)를 쓰고, 남은 거래만 Claude API로 보냅니다. 사용자별·전체 하루 분류 한도가 있습니다.
+
+## 개인정보와 보안
+
+거래 내역은 민감한 정보라 처음부터 서버에 덜 보내고 덜 남기도록 만들었습니다.
+
+- **원본 파일은 서버로 가지 않습니다.** 브라우저에서 읽고 거래만 보냅니다.
+- **계좌번호는 저장하지 않습니다.** 서버 비밀 키로 만든 해시(HMAC-SHA256)와 끝 4자리만 저장하고, 거래 내용에 든 긴 계좌번호는 가립니다.
+- **파일 암호는 암호화해 저장합니다**(AES-256-GCM). 운영 DB 백업도 받는 즉시 암호화합니다.
+- **사용자 데이터는 서로 분리됩니다.** 모든 조회와 변경이 로그인한 사용자 범위 안에서만 일어나는지 통합 테스트로 확인합니다.
+- **공개 저장소 검사**: push할 때마다 모든 커밋에서 비공개 파일, 금지 문자열, 비밀 값을 찾아 걸리면 push를 막습니다.
+- **배포 결과물 검사**: 배포 전에 빌드 결과물에 비밀 값, 계좌 식별값, 개발 전용 경로가 없는지 확인합니다.
+- 로그에는 오류 종류와 위치만 남기고 거래 내용·금액·계좌번호·이메일은 남기지 않습니다.
+
+## 품질 관리
+
+| 층 | 도구 | 확인하는 것 |
+| --- | --- | --- |
+| 단위 | Vitest, PGlite(프로세스 안 Postgres) | 파서, 잔액 보정, 분류, 화면 로직, DB 쿼리 |
+| 통합 | Vitest, Neon 테스트 브랜치 | 권한, 사용자 분리, 업로드 상한, 분류 한도 동시 요청, 탈퇴 |
+| E2E | Playwright(데스크톱·375px) | 로그인부터 업로드·분류·화면까지의 흐름, 데모 |
+
+- **CI**: GitHub Actions가 모든 push와 PR에서 타입 검사, 린트, 단위 테스트, 빌드를 돌립니다.
+- **배포**: `pnpm release` 하나로 배포합니다. 검사 → 커밋된 파일만 빌드 → 결과물 검사 → 배포 → 배포 뒤 점검 순서이고, 앞 단계가 실패하면 멈춥니다.
+
+## 기술 스택
+
+| 분류 | 기술 |
+| --- | --- |
+| 프런트엔드 | Next.js 16(App Router, Server Actions), React 19, TypeScript, Tailwind CSS 4, shadcn/ui(Base UI) |
+| 백엔드·DB | Postgres(Neon), Drizzle ORM, 구글 로그인(OAuth + PKCE, 직접 구현) |
+| 파일 읽기·분류 | SheetJS, cheerio, officecrypto-tool, Claude API |
+| 인프라 | Vercel(호스팅, Web Analytics), GitHub Actions |
+| 테스트 | Vitest, PGlite, Playwright |
+
+## 시작하기
+
+준비물: Node 24(`.nvmrc`), pnpm, Postgres DB(개발용), 구글 OAuth 클라이언트.
 
 ```bash
 pnpm install
+cp .env.example .env.local
 ```
 
-### 환경 변수
-
-이름만 적습니다. 값은 `.env.local`과 Vercel Production 환경 변수에만 둡니다.
-
-- DB: `DATABASE_URL`, `DATABASE_URL_UNPOOLED`(개발), `TEST_DATABASE_URL`, `TEST_DATABASE_URL_UNPOOLED`(테스트), `PROD_DATABASE_URL`, `PROD_DATABASE_URL_UNPOOLED`(운영)
-- Neon API(테스트 브랜치·임시 브랜치): `NEON_API_KEY`, `NEON_PROJECT_ID`, `NEON_PROD_BRANCH_ID`, `NEON_DEV_BRANCH_ID`, `NEON_TEST_BRANCH_ID`
-- 구글 로그인: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`
-- 관리자: `ADMIN_EMAIL`
-- 서버 키(무작위 32바이트, base64): `ACCOUNT_HASH_KEY`(계좌 해시), `PASSWORD_ENCRYPTION_KEY`(카카오뱅크 암호), `BACKUP_ENCRYPTION_KEY`(백업). 잃으면 백업을 풀 수 없고 계좌를 맞출 수 없으므로 맥 밖에도 따로 보관합니다.
-- 자동 분류: `ANTHROPIC_API_KEY`. 한도는 `CLASSIFY_USER_DAILY_LIMIT`(기본 500), `CLASSIFY_TOTAL_DAILY_LIMIT`(기본 3000)로 바꿀 수 있습니다.
-- 실제 샘플 확인용: `KAKAOBANK_FILE_PASSWORD`
-
-비밀 값 변수 이름에는 `KEY`, `SECRET`, `TOKEN`, `PASSWORD`, `DATABASE_URL` 중 하나를 넣습니다(공개 저장소 검사가 이 이름의 값을 찾습니다).
-
-## 개발
-
-DB 명령의 기본 대상은 **개발 DB**(Neon `dev` 브랜치)입니다. 운영 DB는 `--prod`를 줘야만 고릅니다.
+`.env.local`의 값을 채운 뒤(변수 목록은 [개발 문서](DEVELOPMENT.md#환경-변수)) 개발 DB를 준비하고 개발 서버를 띄웁니다.
 
 ```bash
 pnpm db:dev-reset
-```
-
-개발 DB를 비우고 마이그레이션을 처음부터 적용한 뒤 테스트 사용자(user1, user2)를 만들고 user1에 시드 데이터를 넣습니다.
-
-```bash
 pnpm dev
 ```
 
-http://localhost:3000 에서 엽니다(구글 로그인 콜백 주소가 이 주소입니다). 개발 서버에만 있는 기능:
+http://localhost:3000 에서 엽니다. 개발 서버에서는 `/api/auth/dev-login?as=user1`로 구글 없이 시드 데이터가 든 테스트 사용자로 들어갈 수 있습니다.
 
-- 테스트 로그인: `/api/auth/dev-login?as=admin`, `?as=user1`, `?as=user2` 등. 구글 없이 그 사용자로 들어갑니다. 빌드 결과물에는 이 경로가 없습니다.
-- 화면 아래의 "개발 DB" 표시
-- `WONBOOK_FAKE_CLASSIFIER=1`로 켜면 Claude API 대신 가짜 분류를 씁니다.
+테스트, DB 스키마 변경, 백업, 배포 등 자세한 내용은 [개발 문서](DEVELOPMENT.md)에 있습니다.
 
-실제 샘플 파일(`samples/`, git 제외)은 개발 DB에만 올립니다. 카카오뱅크 샘플 암호는 화면에 치지 않고 다음 명령으로 user2에 저장해 둡니다(값은 출력하지 않습니다).
+## 프로젝트 구조
 
-```bash
-pnpm exec tsx scripts/dev-kakao-password.ts
+<details>
+<summary>주요 폴더</summary>
+
+```text
+src/
+├── app/            # 화면과 라우트(App Router)
+│   ├── (app)/      # 로그인 뒤 화면: 자산 현황, 월별, 거래, 업로드, 계정, 카테고리, 설정, 관리자
+│   ├── api/        # 로그인·로그아웃, CSV 내보내기
+│   └── demo/       # 로그인 없는 데모 진입
+├── auth/           # 구글 로그인, 세션, 데모 사용자
+├── components/     # 공통 UI(그래프, 요약 카드, 카테고리 배지 등)
+├── db/             # 스키마(Drizzle), 마이그레이션 적용, 시드
+├── lib/
+│   ├── parsers/    # 금융사별 파일 파서
+│   ├── import/     # 업로드 반영(기간 덮어쓰기, 되돌리기)
+│   ├── balance/    # 잔액 보정
+│   ├── categorize/ # 카테고리 분류(저장된 분류, Claude API, 한도)
+│   ├── privacy/    # 계좌 해시, 계좌번호 가리기
+│   └── reports/    # 자산·월별 집계
+└── secrets/        # 파일 암호 암호화
+drizzle/            # 마이그레이션 SQL(drizzle-kit 생성)
+scripts/            # DB 마이그레이션·백업, 배포, 공개 저장소·결과물 검사
+test/               # 통합·E2E 테스트
 ```
 
-## 테스트
+</details>
 
-```bash
-pnpm test
-```
+## Claude Code로 만든 과정
 
-단위 테스트입니다. DB가 필요한 테스트는 프로세스 안 Postgres(PGlite)로 돌아 외부 DB가 필요 없습니다.
+이 프로젝트는 [Claude Code](https://claude.com/claude-code)와 함께 문서 중심으로 개발했습니다.
 
-```bash
-pnpm test:integration
-```
+- 기능마다 사람이 정할 것(범위, 비용, 공개 여부, 디자인)을 먼저 모두 정한 **자율 구현 명세서**를 쓰고, 요구사항마다 실행할 수 있는 확인 방법을 붙였습니다.
+- AI가 그 명세서만 보고 끝까지 구현하고, 요구사항마다 테스트·브라우저 확인으로 근거를 남겼습니다.
+- 공개 저장소 검사, 배포 결과물 검사, 브라우저 직접 점검으로 사람이 놓치기 쉬운 것을 기계적으로 막았습니다.
 
-통합 테스트입니다. 서버 동작의 권한·사용자 분리·업로드 상한·분류 한도 동시 요청·탈퇴를 실제 Postgres(Neon `test` 브랜치)에서 확인합니다. 시작할 때 `test` 브랜치의 스키마를 지우고 다시 만듭니다. 필요한 변수: `NEON_API_KEY`, `NEON_PROJECT_ID`, `NEON_TEST_BRANCH_ID`(와 운영·개발 브랜치 id).
+프로젝트 규칙은 [CLAUDE.md](CLAUDE.md)와 [AGENTS.md](AGENTS.md)에 있습니다.
 
-```bash
-pnpm test:e2e
-```
+## 라이선스
 
-E2E 테스트(Playwright, 데스크톱·375px)입니다. `test` 브랜치를 쓰는 개발 서버를 3100 포트에 따로 띄웁니다. 통합 테스트와 같은 브랜치를 쓰므로 동시에 돌리지 않습니다. 스크린샷은 저장소 밖에 둡니다. 처음 한 번 `pnpm exec playwright install chromium`이 필요합니다.
-
-```bash
-pnpm exec playwright test -c playwright.samples.config.ts
-```
-
-실제 샘플 확인입니다(`samples/`가 있을 때만). `pnpm dev`를 띄운 뒤 실제 샘플을 브라우저에서 읽어 올리고, 서버로 간 요청에 원본 파일과 계좌 식별값이 없는지, 브라우저와 Node의 읽은 결과가 같은지 봅니다.
-
-```bash
-pnpm verify
-```
-
-타입 검사, 린트, 단위 테스트, 빌드를 차례로 돌립니다. push 전 검사와 CI가 같은 명령을 씁니다.
-
-## DB 스키마 바꾸기
-
-1. `src/db/schema.ts`를 고칩니다.
-2. 마이그레이션 파일을 만듭니다.
-
-```bash
-pnpm db:generate
-```
-
-3. 개발 DB에 적용해 확인합니다.
-
-```bash
-pnpm db:migrate
-```
-
-4. 배포 전에 운영 DB에 적용합니다. 적용 전에 자동으로 암호화 백업을 받습니다.
-
-```bash
-pnpm db:migrate --prod
-```
-
-## 백업과 복원
-
-```bash
-pnpm db:backup --prod
-```
-
-운영 DB를 `pg_dump`로 받아 바로 암호화(AES-256-GCM, 키 `BACKUP_ENCRYPTION_KEY`)해 `data/backups/prod-날짜-시각.dump.enc`로 씁니다. 평문 덤프는 디스크에 남지 않습니다. 대상마다 최근 10개만 남깁니다. 운영 DB를 바꾸는 명령(마이그레이션, 데이터 이전)은 실행 전에 자동으로 백업합니다.
-
-복원은 풀어서 바로 `pg_restore`로 넘깁니다. 키가 틀리거나 파일이 손상됐으면 아무것도 내보내지 않고 실패합니다.
-
-```bash
-pnpm -s db:backup-decrypt data/backups/prod-20261023-120000.dump.enc | pg_restore -l
-```
-
-```bash
-pnpm -s db:backup-decrypt data/backups/prod-20261023-120000.dump.enc | pg_restore --clean --if-exists --no-owner --no-privileges -d "복원할 DB 주소"
-```
-
-백업에 개인정보 검사(평문 검색, 틀린 키, 계좌 식별값)를 하려면 다음을 씁니다.
-
-```bash
-pnpm check:db --backup data/backups/prod-20261023-120000.dump.enc
-```
-
-## 예전 로컬 DB 옮기기
-
-예전 로컬 앱의 SQLite DB(`data/wonbook.db`)를 운영 DB의 관리자 계정으로 옮기는 명령입니다. 계좌번호는 해시와 끝 4자리로 바꾸고, 거래 내용·메모·파일 이름의 계좌번호는 가리고, 거래 원본 행은 옮기지 않습니다. 이미 관리자 데이터가 있으면 아무것도 바꾸지 않습니다. 옮긴 뒤 자산 현황·최근 세 달 월별·계정별 거래 수를 로컬 DB로 계산한 값과 견줍니다.
-
-```bash
-pnpm db:import-rehearsal
-```
-
-`test` 브랜치에서 임시 브랜치를 만들어 옮겨 보고, 확인한 뒤 그 브랜치를 지웁니다.
-
-```bash
-pnpm db:import-local --prod
-```
-
-운영 DB로 옮깁니다. 실제 로컬 DB는 운영으로만 옮기며, 개발·테스트 DB에는 `--from <가짜 SQLite 파일>`로만 씁니다.
-
-## 관리자
-
-`ADMIN_EMAIL`과 같은 이메일의 구글 계정이 관리자입니다. 사이드바에 관리자 화면이 생기고, 가입자 수와 오늘 분류 사용량만 봅니다. 관리자는 분류 한도에서 빠집니다.
-
-예전 로컬 DB를 옮기면 관리자 계정이 구글 계정 없이 미리 만들어집니다. 운영 주소에서 그 이메일로 처음 구글 로그인하면 새 계정을 만들지 않고 그 계정에 연결됩니다.
-
-## 배포
-
-Vercel 프로젝트 `wonbook`(함수 리전 `sin1`)에 로컬 명령으로만 배포합니다. Git 연동은 쓰지 않습니다. Vercel CLI는 `npx --yes vercel@65.1.0`으로 씁니다(`vercel env pull`처럼 `.env.local`을 덮어쓰는 명령은 쓰지 않습니다).
-
-처음 한 번 준비합니다.
-
-- 프로젝트 연결: `vercel link`는 연결한 폴더의 `.env.local`을 만들거나 덮어쓰므로, 빈 임시 폴더에서 `npx --yes vercel@65.1.0 link --yes --project wonbook`을 실행한 뒤 그 폴더의 `.vercel/project.json`만 저장소 루트의 `.vercel/`로 옮깁니다.
-- 환경 변수: 다음 명령이 `.env.local` 값을 Vercel **Production**에만 Sensitive로 넣습니다(`DATABASE_URL`은 `PROD_DATABASE_URL` 값). 값은 표준 입력으로 넘겨 출력하지 않습니다.
-
-```bash
-pnpm exec tsx scripts/vercel-env.ts
-```
-
-- 사용 분석 켜기(첫 운영 배포 전에): `npx --yes vercel@65.1.0 project web-analytics enable wonbook`
-
-배포는 다음 명령 하나로 합니다.
-
-```bash
-pnpm release
-```
-
-순서: `verify` → 커밋된 파일만 작업 폴더 밖 임시 폴더로 꺼내기 → `vercel build`(Production) → 배포 결과물 검사(`check:output`) → `vercel deploy --prebuilt --prod` → 배포 뒤 점검(`smoke`). 앞 단계가 실패하면 멈추고, 커밋하지 않은 변경이 있으면 배포하지 않습니다.
-
-- 배포 결과물 검사: 결과물에 비공개 파일, 금지 문자열, 비밀 값, 계좌 식별값, 테스트 로그인 경로가 없고, 소개 화면·처리방침의 메타 태그, 아이콘, `robots.txt`, `sitemap.xml`이 맞는지 봅니다.
-- 배포 뒤 점검은 따로 돌릴 수도 있습니다(상태를 바꾸는 요청은 하지 않습니다).
-
-```bash
-pnpm smoke https://wonbook.vercel.app
-```
-
-- 사용 분석(Vercel Web Analytics)의 수집 경로 `/_vercel/insights/*`는 prebuilt 배포에서 붙지 않을 수 있습니다. 배포 뒤 점검에서 분석 스크립트만 실패하면, Analytics가 켜져 있는지 확인하고 한 번 다시 배포합니다. 그래도 안 되면 원격 빌드로 배포합니다. 로컬 빌드와 결과물 검사를 똑같이 통과한 뒤, 같은 커밋을 꺼낸 깨끗한 임시 폴더를 Vercel에서 빌드합니다.
-
-```bash
-pnpm release --remote-build
-```
-
-- 점검이 실패하면 원인을 고쳐 다시 배포합니다. 운영 데이터와 상관없는 문제면 Vercel 대시보드나 `vercel rollback`으로 이전 배포로 되돌릴 수 있습니다.
-
-### 운영 중 오류 보기
-
-오류는 Vercel 함수 로그에서 봅니다(대시보드 → 프로젝트 → Logs). 별도 오류 알림은 두지 않습니다. 로그에는 오류 종류와 위치만 남기고 거래 내용·금액·계좌번호·이메일·비밀 값은 남기지 않습니다.
-
-```bash
-npx --yes vercel@65.1.0 logs --project wonbook --environment production --since 1h
-```
-
-## push 전 검사와 CI
-
-`pnpm install`이 git 훅 폴더를 `.githooks`로 설정합니다. push할 때마다 `pnpm verify`와 공개 저장소 검사(`pnpm check:repo`)를 돌리고, 실패하면 push를 막습니다. 공개 저장소 검사는 모든 커밋·커밋 메시지·브랜치 이름에서 비공개 파일, 금지 문자열, 비밀 값을 찾습니다. 검사 기준은 저장소 밖의 비공개 목록과 `.env.local`에서 읽습니다. 훅을 건너뛰지 않습니다.
-
-GitHub Actions(CI)는 모든 브랜치 push와 PR에서 "검사"(타입 검사·린트·단위 테스트)와 "빌드"를 돌립니다. 배포는 하지 않습니다.
+라이선스를 붙이지 않았습니다. 코드는 볼 수 있지만 모든 권리는 저작자에게 있습니다(All rights reserved).

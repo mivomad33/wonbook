@@ -2,7 +2,7 @@
 // 순서: verify → 커밋된 파일만 작업 폴더 밖 임시 폴더로 꺼내기 → vercel build(Production) → 배포 결과물 검사
 //       → vercel deploy --prebuilt --prod → 배포 뒤 점검(실패하면 20초 간격으로 3번까지).
 // --remote-build: 위와 같이 로컬 빌드와 결과물 검사를 통과한 뒤, 같은 커밋을 꺼낸 깨끗한 임시 폴더를 vercel deploy --prod(원격 빌드)로 올린다.
-//   prebuilt 배포에서 사용 분석 수집 경로가 동작하지 않을 때만 쓴다(README "배포").
+//   prebuilt 배포에서 사용 분석 수집 경로가 동작하지 않을 때만 쓴다(DEVELOPMENT.md "배포").
 // 작업 폴더에서 vercel build·deploy를 하지 않는다. 함수가 참조하는 파일에 .env.local 같은 로컬 파일이 섞이지 않게 하고,
 // 운영 배포의 코드가 커밋과 같게 하기 위해서다. 그래서 커밋하지 않은 변경이 있으면 배포하지 않는다.
 // vercel pull은 임시 폴더에서만 한다(작업 폴더의 .env.local을 덮어쓰지 않는다).

@@ -1,5 +1,5 @@
 #!/bin/sh
-# push 전 검사(README.md "push 전 검사"). verify → 공개 저장소 검사. 하나라도 실패하면 push를 멈춘다.
+# push 전 검사(DEVELOPMENT.md "push 전 검사와 CI"). verify → 공개 저장소 검사. 하나라도 실패하면 push를 멈춘다.
 # 인자: $1 원격 이름, $2 원격 주소. 표준 입력: push하는 ref 줄.
 set -e
 root=$(git rev-parse --show-toplevel)
