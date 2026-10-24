@@ -34,3 +34,4 @@ test-results/
 playwright-report/
 /.next-e2e/
 /.next-err/
+/.next-check/

@@ -35,6 +35,23 @@
         "3200"
       ],
       "port": 3200
+    },
+    {
+      "name": "check",
+      "runtimeExecutable": "env",
+      "runtimeArgs": [
+        "NEXT_DIST_DIR=.next-check",
+        "WONBOOK_FAKE_CLASSIFIER=1",
+        "pnpm",
+        "exec",
+        "next",
+        "dev",
+        "-H",
+        "127.0.0.1",
+        "-p",
+        "3300"
+      ],
+      "port": 3300
     }
   ]
 }
