@@ -15,9 +15,13 @@ import { REPO_URL, SITE_NAME, SITE_URL } from "@/config";
 import { cn } from "@/lib/utils";
 import { LoginError } from "./_landing/login-error";
 import { SUPPORTED_GROUPS } from "./_landing/supported";
-import { LANDING_TITLE, pageMetadata, SITE_DESCRIPTION } from "./site-meta";
+import { LANDING_TITLE, pageMetadata, SITE_DESCRIPTION, SITE_VERIFICATION } from "./site-meta";
 
-export const metadata: Metadata = pageMetadata("/", LANDING_TITLE);
+// 검색엔진 소유 확인 meta는 소개 화면에만 둔다(콘솔이 등록한 주소의 첫 화면을 본다).
+export const metadata: Metadata = {
+  ...pageMetadata("/", LANDING_TITLE),
+  verification: { google: SITE_VERIFICATION.google, other: { "naver-site-verification": SITE_VERIFICATION.naver } },
+};
 
 const JSON_LD = {
   "@context": "https://schema.org",

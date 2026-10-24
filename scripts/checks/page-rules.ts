@@ -18,6 +18,16 @@ export const OG_IMAGE_PATH = new URL(OG_IMAGE.url).pathname;
 /** 개발 전용 테스트 로그인 경로의 흔적(결과물·운영 사이트에 없어야 한다, 4.1-5) */
 export const DEV_LOGIN_MARKER = "dev-login";
 
+/**
+ * 검색엔진 소유 확인 값. 앱 코드(site-meta)의 값을 가져다 쓰지 않고 일부러 따로 적는다.
+ * 앱 쪽 값이 빠지거나 바뀌면 검사가 잡게 하기 위해서다. 값을 바꿀 때 두 곳을 함께 고친다.
+ */
+export const EXPECTED_VERIFICATION = {
+  google: "mhxcHCnGlus8pgaYc_t7hBGoj3cvPOkED1D6dSxu30M",
+  naver: "f8f8ac44e429c3997d54c5cbc0d0d63749221f66",
+  daumRobotsLine: "#DaumWebMasterTool:7db491f604e320fb49d32377b35b052df1f9f3574eb7a8e83f2b70c2c260999c:7P03ihYqiZrb12N7WKj+xw==",
+};
+
 export const absoluteUrl = (path: string) => `${SITE_URL}${path}`;
 
 /** robots.txt 기대 내용(앱의 경로 처리기가 만드는 그대로) */
@@ -84,6 +94,10 @@ export function checkPublicPage(html: string, path: string): string[] {
   if (!OG_IMAGE.url.startsWith("https://")) bad.push("og:image가 절대 주소가 아닙니다");
   const icons = iconHrefs(html).map((h) => h.split("?")[0]);
   for (const need of ICON_PATHS) if (!icons.includes(need)) bad.push(`아이콘 링크 ${need}가 없습니다`);
+  if (path === "/") {
+    once("google-site-verification", values(html, "meta", "name", "google-site-verification", "content"), EXPECTED_VERIFICATION.google);
+    once("naver-site-verification", values(html, "meta", "name", "naver-site-verification", "content"), EXPECTED_VERIFICATION.naver);
+  }
   return bad;
 }
 
@@ -113,7 +127,9 @@ export function checkJsonLd(html: string): string[] {
 const normLines = (s: string) => s.replace(/\r\n/g, "\n").trim().split("\n").map((l) => l.trim()).join("\n");
 
 export async function checkRobots(text: string): Promise<string[]> {
-  return normLines(text) === normLines(await expectedRobots()) ? [] : ["robots.txt 내용이 다릅니다"];
+  const bad = normLines(text) === normLines(await expectedRobots()) ? [] : ["robots.txt 내용이 다릅니다"];
+  if (normLines(text).split("\n").at(-1) !== EXPECTED_VERIFICATION.daumRobotsLine) bad.push("robots.txt 맨 아래에 다음 소유 확인 줄이 없습니다");
+  return bad;
 }
 
 export function checkSitemap(xml: string): string[] {

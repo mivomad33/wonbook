@@ -13,6 +13,17 @@ export const OG_IMAGE = {
   alt: "Wonbook - 은행 파일만 올리면 가계부 정리 끝. 업로드 결과 화면 예시",
 };
 
+/**
+ * 검색엔진 소유 확인 값(Google Search Console, 네이버 서치어드바이저, 다음 웹마스터도구). 원래 페이지에 공개되는 값이다.
+ * Google·네이버는 소개 화면 <meta>로, 다음은 robots.txt 맨 아래 줄로 확인한다. Bing은 Search Console에서 가져와 값이 없다.
+ * 배포 검사 기준(scripts/checks/page-rules.ts)에도 따로 적혀 있어, 바꿀 때 함께 고친다.
+ */
+export const SITE_VERIFICATION = {
+  google: "mhxcHCnGlus8pgaYc_t7hBGoj3cvPOkED1D6dSxu30M",
+  naver: "f8f8ac44e429c3997d54c5cbc0d0d63749221f66",
+  daumRobotsLine: "#DaumWebMasterTool:7db491f604e320fb49d32377b35b052df1f9f3574eb7a8e83f2b70c2c260999c:7P03ihYqiZrb12N7WKj+xw==",
+};
+
 /** 페이지마다 같은 미리보기 태그를 쓰고 주소만 바꾼다. */
 export function pageMetadata(path: string, title: string): Metadata {
   const url = `${SITE_URL}${path}`;

@@ -4,7 +4,7 @@ import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import type { Basis } from "./basis";
 import { checkContents, checkPages, forbiddenFile } from "./output-check";
-import { checkJsonLd, checkPublicPage, checkSitemap, SITEMAP_URLS } from "./page-rules";
+import { checkJsonLd, checkPublicPage, checkRobots, checkSitemap, expectedRobots, SITEMAP_URLS } from "./page-rules";
 
 // 실제 기준(비공개)은 쓰지 않고 가짜 기준으로 검사 동작만 본다. 실제 기준으로 하는 확인은 output-check.ts --self-test.
 const basis: Basis = {
@@ -92,6 +92,17 @@ describe("배포 결과물 검사 - 공개 페이지", () => {
     expect(urlErrors(page("https://wonbook.vercel.app"))).toEqual([]);
     expect(urlErrors(page("https://wonbook.vercel.app/"))).toEqual([]);
     expect(urlErrors(page("https://wonbook.vercel.app/home"))).toEqual(["canonical 값이 다릅니다", "og:url 값이 다릅니다"]);
+  });
+
+  it("소개 화면의 소유 확인 meta와 robots.txt의 다음 인증 줄을 기준값과 견준다", async () => {
+    const meta = (g: string) => `<html lang="ko"><head><meta name="google-site-verification" content="${g}"/></head></html>`;
+    const errors = (html: string) => checkPublicPage(html, "/").filter((b) => b.includes("site-verification"));
+    expect(errors(meta("mhxcHCnGlus8pgaYc_t7hBGoj3cvPOkED1D6dSxu30M"))).toEqual(["naver-site-verification 0개(1개여야 합니다)"]);
+    expect(errors(meta("x"))).toContain("google-site-verification 값이 다릅니다");
+    expect(checkPublicPage(meta("x"), "/privacy").filter((b) => b.includes("site-verification"))).toEqual([]);
+    const robots = await expectedRobots();
+    expect(await checkRobots(robots)).toEqual([]);
+    expect(await checkRobots(robots.replace(/#DaumWebMasterTool:.*\n?/, ""))).toContain("robots.txt 맨 아래에 다음 소유 확인 줄이 없습니다");
   });
 
   it("sitemap은 원본 모듈의 주소 목록과 같아야 한다", () => {
