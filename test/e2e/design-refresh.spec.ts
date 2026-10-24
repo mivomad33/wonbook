@@ -149,6 +149,47 @@ test("데이터 없는 사용자: 자산 현황·월별·거래 목록이 오류
   }
 });
 
+test("월별 추이: 6개월에 음수 값(카드 환불)만 있어도 그래프를 그리고 그 값을 보여 준다", async ({ page }, info) => {
+  await loginAs(page, byProject(info, "user6", "user16"));
+  // 카드 계정을 만들고 이번 달에 환불 거래 하나만 넣는다(카드 사용 합계가 음수).
+  await open(page, "/accounts");
+  await page.getByRole("button", { name: "계정 추가" }).click();
+  const accountDialog = page.getByRole("dialog");
+  await accountDialog.getByLabel("이름").fill("가짜카드");
+  await accountDialog.getByLabel("종류").selectOption({ label: "카드" });
+  await accountDialog.getByRole("button", { name: "저장" }).click();
+  await expect(accountDialog).toBeHidden();
+
+  await open(page, "/transactions");
+  await page.getByRole("button", { name: "거래 추가" }).click();
+  const txDialog = page.getByRole("dialog");
+  await txDialog.getByLabel("계정").selectOption({ label: "가짜카드" });
+  await txDialog.getByRole("radio", { name: "환불" }).click();
+  await txDialog.getByLabel("금액").fill("50000");
+  await txDialog.getByLabel("내용(선택)").fill("가짜환불");
+  await txDialog.getByRole("button", { name: "저장" }).click();
+  await expect(txDialog).toBeHidden();
+
+  await open(page, "/monthly");
+  await expect(page.locator("main")).not.toContainText("최근 6개월에 거래가 없습니다.");
+  const trend = page.getByRole("group", { name: "최근 6개월 수입·지출·카드 사용" });
+  await expect(trend).toBeVisible();
+  // 음수 막대는 0으로 그리고, 그 달의 실제 값은 이름과 위쪽 값 줄에 보인다(4.3-2).
+  await expect(trend.getByRole("link").last()).toHaveAccessibleName(/카드 사용 -50,000원/);
+  await expect(page.locator("main")).toContainText("카드 사용 -50,000원");
+});
+
+test("월별 도넛: 음수 카테고리가 있어도 가운데 합계가 패널 합계와 같다", async ({ page }) => {
+  // 데모 이번 달 카드 사용은 여가·여행 환불로 음수 카테고리가 있다(시드).
+  await openDemo(page, "/monthly");
+  const cardPanel = page.locator("section", { has: page.getByRole("heading", { name: "카드 사용" }) });
+  await expect(cardPanel.getByText(/^-[\d,]+원$/).first()).toBeVisible();
+  const panelTotal = (await cardPanel.locator(":scope > div").first().locator("div.text-xs").textContent())!.trim();
+  const donut = cardPanel.getByRole("img", { name: /^카드 사용: / });
+  await expect(donut.locator("text").nth(0)).toHaveText("합계");
+  await expect(donut.locator("text").nth(1)).toHaveText(panelTotal);
+});
+
 test("소개 화면: 예시 요약 카드의 금액이 어느 폭에서도 카드 밖으로 넘치지 않는다", async ({ page }, info) => {
   test.skip(info.project.name === "mobile", "데스크톱 프로젝트에서 폭만 바꿔 본다");
   for (const width of [375, 640, 768, 800, 900, 1024, 1280]) {

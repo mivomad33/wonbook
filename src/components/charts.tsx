@@ -22,8 +22,10 @@ export type TrendMonth = { month: string; label: string; income: number; expense
 /** 최근 몇 달의 수입·지출·카드 사용 막대(4.3-2). 막대 묶음을 누르면 그 달로 간다(hrefPrefix 뒤에 YYYY-MM을 붙인다). */
 export function TrendChart({ months, current, hrefPrefix }: { months: TrendMonth[]; current: string; hrefPrefix: string }) {
   const [active, setActive] = useState(current);
-  const peak = Math.max(0, ...months.flatMap((m) => [m.income, m.expense, m.card]));
-  const hasData = peak > 0;
+  const values = months.flatMap((m) => [m.income, m.expense, m.card]);
+  const peak = Math.max(0, ...values);
+  // 음수만 있는 달(환불이 더 큰 카드 사용)도 거래가 있는 것이다. 막대는 0으로 그리고 값은 위쪽 줄에 보인다.
+  const hasData = values.some((v) => v !== 0);
   // 그림 폭을 실제 화면 폭(px)에 맞춰, 좁은 화면에서도 글자가 줄어들지 않게 한다.
   const box = useRef<HTMLDivElement>(null);
   const [w, setW] = useState(520);
@@ -149,6 +151,8 @@ export function Donut({ items, label, size = 140 }: { items: DonutItem[]; label:
   const [active, setActive] = useState<number | null>(null);
   const shown = items.filter((it) => it.amount > 0);
   const total = shown.reduce((s, it) => s + it.amount, 0);
+  // 가운데 "합계"는 음수 카테고리까지 더한 값이라 패널 합계와 같다. 칸 비율은 양수 합(total) 기준이다.
+  const net = items.reduce((s, it) => s + it.amount, 0);
   if (total <= 0) {
     return (
       <div className="flex shrink-0 items-center justify-center rounded-full border border-dashed text-center text-xs text-muted-foreground" style={{ width: size, height: size }}>
@@ -199,7 +203,7 @@ export function Donut({ items, label, size = 140 }: { items: DonutItem[]; label:
         {cur ? cur.name : "합계"}
       </text>
       <text x="50%" y="59%" textAnchor="middle" fontSize={13} fontWeight={700} fill="var(--foreground)">
-        {won(cur ? cur.amount : total)}
+        {won(cur ? cur.amount : net)}
       </text>
     </svg>
   );
