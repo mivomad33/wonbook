@@ -3,7 +3,7 @@ import { and, asc, eq } from "drizzle-orm";
 import type { Db } from "@/db/client";
 import { createTestContext } from "@/db/test-db";
 import { accounts, categories, categoryRules, transactions } from "@/db/schema";
-import { applyImport, type UploadedTransaction } from "@/lib/import";
+import { applyImport, undoImport, type UploadedTransaction } from "@/lib/import";
 import { createTransaction, createTransfer, setTransactionDeleted } from "@/lib/transactions";
 import type { Classifier, ClassifyItem } from "./claude";
 import { createCategory } from "@/lib/categories";
@@ -388,6 +388,19 @@ describe("reclassifyOthers", () => {
     });
     expect(await reclassifyOthers(db, userId, { ...noQuota, classify: null })).toEqual({ asked: 0, changedKeys: 0, changedTransactions: 0, error: { kind: "no_key" }, ...ok });
     expect((await listRows(db, userId)).map((r) => r.category)).toEqual(["기타 지출"]);
+  });
+
+  it("업로드를 되돌려 거래가 남지 않은 키는 세지도 묻지도 않는다", async () => {
+    const { db, userId, card, bank, upload } = await setup();
+    await upload(bank, [row("모르는입금", 10_000)]);
+    const importId = await upload(card, [row("별빛헤어")]);
+    await classifyPending(db, userId, { ...noQuota, classify: fakeClassifier({ 모르는입금: "기타 수입" }) });
+    await undoImport(db, userId, importId);
+    // 별빛헤어 규칙은 남지만 물을 거래가 없다.
+    expect((await rulesOf(db, userId)).map((r) => r.key)).toContain("별빛헤어");
+    expect(await countOtherAiRules(db, userId)).toBe(1);
+    const classify = fakeClassifier();
+    expect(await reclassifyOthers(db, userId, { ...noQuota, classify })).toMatchObject({ asked: 1 });
   });
 
   it("기타로 분류한 키가 없으면 API를 부르지 않는다", async () => {

@@ -288,9 +288,27 @@ async function otherAiRules(db: DbOrTx, userId: number) {
     .where(and(eq(categoryRules.userId, userId), eq(categoryRules.source, "ai"), inArray(categories.name, [...OTHER_CATEGORY_NAMES])));
 }
 
-// 다시 물을 키 수. 카테고리 화면이 다시 묻기를 권할지 정하는 데 쓴다.
+// 다시 물을 키와 키마다 대표 거래(가장 먼저 넣은 업로드 거래). 거래가 모두 지워진 키는 보낼 칸이 없어 묻지 않는다.
+async function otherKeysToAsk(db: DbOrTx, userId: number) {
+  const rules = new Map((await otherAiRules(db, userId)).map((r) => [r.matchKey, r.categoryId]));
+  const byKey = new Map<string, { key: MatchKey; first: PendingRow }>();
+  if (rules.size === 0) return { rules, entries: [] };
+  const rows: PendingRow[] = await db
+    .select(rowColumns)
+    .from(transactions)
+    .innerJoin(accounts, eq(accounts.id, transactions.accountId))
+    .where(and(eq(transactions.userId, userId), eq(transactions.kind, "normal"), eq(transactions.source, "upload")))
+    .orderBy(asc(transactions.id));
+  for (const r of rows) {
+    const key = matchKeyOf(r);
+    if (key && rules.has(key.key) && !byKey.has(key.key)) byKey.set(key.key, { key, first: r });
+  }
+  return { rules, entries: [...byKey.values()] };
+}
+
+// 다시 물을 키 수(reclassifyOthers가 실제로 묻는 키만). 카테고리 화면이 다시 묻기를 권할지 정하는 데 쓴다.
 export async function countOtherAiRules(db: DbOrTx, userId: number): Promise<number> {
-  return (await otherAiRules(db, userId)).length;
+  return (await otherKeysToAsk(db, userId)).entries.length;
 }
 
 export type ReclassifyOthersResult = LimitInfo & {
@@ -306,22 +324,7 @@ export type ReclassifyOthersResult = LimitInfo & {
 // 답이 바뀐 키는 규칙과 그 키의 ai·saved 거래를 새 카테고리로 바꾼다. user 규칙·거래와 다른 카테고리의 키는 건드리지 않는다.
 export async function reclassifyOthers(db: DbOrTx, userId: number, options: ClassifyOptions): Promise<ReclassifyOthersResult> {
   const result: ReclassifyOthersResult = { asked: 0, changedKeys: 0, changedTransactions: 0, error: null, limited: false, limitedKeys: 0 };
-  const rules = new Map((await otherAiRules(db, userId)).map((r) => [r.matchKey, r.categoryId]));
-  if (rules.size === 0) return result;
-
-  // 키마다 대표 거래(가장 먼저 넣은 업로드 거래). 거래가 모두 지워진 키는 보낼 칸이 없어 묻지 않는다.
-  const byKey = new Map<string, { key: MatchKey; first: PendingRow }>();
-  const rows: PendingRow[] = await db
-    .select(rowColumns)
-    .from(transactions)
-    .innerJoin(accounts, eq(accounts.id, transactions.accountId))
-    .where(and(eq(transactions.userId, userId), eq(transactions.kind, "normal"), eq(transactions.source, "upload")))
-    .orderBy(asc(transactions.id));
-  for (const r of rows) {
-    const key = matchKeyOf(r);
-    if (key && rules.has(key.key) && !byKey.has(key.key)) byKey.set(key.key, { key, first: r });
-  }
-  const entries = [...byKey.values()];
+  const { rules, entries } = await otherKeysToAsk(db, userId);
   if (entries.length === 0) return result;
   if (!options.classify) {
     result.error = { kind: "no_key" };
