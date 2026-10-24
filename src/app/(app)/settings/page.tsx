@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { requireUser } from "@/auth/current";
 import { FeedbackLink } from "@/components/feedback-link";
 import { PageHeader } from "@/components/page-header";
+import { Panel, Stack } from "@/components/panel";
 import { buttonVariants } from "@/components/ui/button";
 import { getAppDb } from "@/db/client";
 import { cn } from "@/lib/utils";
@@ -26,10 +27,9 @@ export default function Page() {
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section className="flex max-w-xl flex-col gap-2 border-b pb-6">
-      <h2 className="font-semibold">{title}</h2>
-      {children}
-    </section>
+    <Panel title={title}>
+      <div className="flex flex-col gap-2">{children}</div>
+    </Panel>
   );
 }
 
@@ -38,7 +38,7 @@ async function Content() {
   if (user.isDemo) redirect("/home");
   const saved = await hasKakaoPassword(getAppDb(), user.id);
   return (
-    <div className="flex flex-col gap-6">
+    <Stack className="max-w-xl">
       <p className="text-sm text-muted-foreground">{user.email}로 로그인했습니다.</p>
       <Section title="카카오뱅크 파일 암호">
         <p className="text-sm text-muted-foreground">카카오뱅크 거래 내역 파일을 열 때 쓰는 암호입니다. 서버에 암호화해 저장하고, 화면에 다시 보여 주지 않습니다.</p>
@@ -64,6 +64,6 @@ async function Content() {
       <p className="text-sm text-muted-foreground">
         써 보니 어떠셨나요? <FeedbackLink className="underline">의견 보내기</FeedbackLink>
       </p>
-    </div>
+    </Stack>
   );
 }

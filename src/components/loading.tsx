@@ -16,3 +16,22 @@ export function TablesSkeleton({ tables = 1, rows = 5 }: { tables?: number; rows
     </div>
   );
 }
+
+// 요약 카드와 패널로 된 화면의 자리(design-refresh 명세서 4.6-4). 요약 카드 stats개, 패널 panels개다.
+// rows를 주면 패널 대신 줄 rows개의 표 자리를 둔다(거래 목록).
+export function DashboardSkeleton({ stats = 3, panels = 2, rows }: { stats?: number; panels?: number; rows?: number }) {
+  return (
+    <div role="status" aria-label="불러오는 중" className="flex flex-col gap-3.5">
+      {stats > 0 && (
+        <div className="grid grid-cols-2 gap-2.5 md:flex md:gap-3.5 md:*:flex-1">
+          {Array.from({ length: stats }, (_, i) => (
+            <Skeleton key={i} className="h-[76px] rounded-lg" />
+          ))}
+        </div>
+      )}
+      {rows
+        ? Array.from({ length: rows }, (_, i) => <Skeleton key={i} className="h-8 w-full" />)
+        : Array.from({ length: panels }, (_, i) => <Skeleton key={i} className="h-44 rounded-lg" />)}
+    </div>
+  );
+}

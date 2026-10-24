@@ -1,6 +1,7 @@
 "use client";
 
 import { useTransition } from "react";
+import { PencilIcon, Trash2Icon } from "lucide-react";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { useDemoGuard } from "@/components/demo-guard";
 import { Button } from "@/components/ui/button";
@@ -39,14 +40,20 @@ export function TransactionRowActions({ row }: { row: TransactionListItem }) {
   ].filter(Boolean);
 
   return (
-    <div className="flex justify-end gap-1">
-      <Button variant="ghost" size="xs" onClick={() => openEditor({ type: isTransfer ? "transfer" : "transaction", row })}>
-        수정
+    <div className="flex justify-end gap-0.5 text-muted-foreground">
+      <Button
+        variant="ghost"
+        size="icon-xs"
+        aria-label="수정"
+        title="수정"
+        onClick={() => openEditor({ type: isTransfer ? "transfer" : "transaction", row })}
+      >
+        <PencilIcon />
       </Button>
       <ConfirmDialog
         trigger={
-          <Button variant="ghost" size="xs">
-            삭제
+          <Button variant="ghost" size="icon-xs" aria-label="삭제" title="삭제">
+            <Trash2Icon />
           </Button>
         }
         title={isTransfer ? "이체를 삭제 표시할까요?" : "거래를 삭제 표시할까요?"}

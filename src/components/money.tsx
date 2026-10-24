@@ -19,8 +19,8 @@ export function Money({
     <span
       className={cn(
         "whitespace-nowrap tabular-nums",
-        signed && value > 0 && "text-green-600",
-        signed && value < 0 && "text-red-600",
+        signed && value > 0 && "text-income",
+        signed && value < 0 && "text-expense",
         className,
       )}
     >

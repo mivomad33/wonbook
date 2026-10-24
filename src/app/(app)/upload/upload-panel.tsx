@@ -2,11 +2,13 @@
 
 import { useRef, useState, useTransition, type DragEvent } from "react";
 import Link from "next/link";
+import { UploadIcon } from "lucide-react";
+import { Panel } from "@/components/panel";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { Money } from "@/components/money";
 import { ReclassifyButton } from "@/components/reclassify-button";
 import { TransactionTags } from "@/components/transaction-tags";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -183,8 +185,8 @@ export function UploadPanel({ isDemo, userDailyLimit }: { isDemo: boolean; userD
         onDrop={onDrop}
         aria-label="금융사 파일 고르기"
         className={cn(
-          "flex h-32 w-full flex-col items-center justify-center gap-1 rounded-lg border-2 border-dashed px-3 text-center text-muted-foreground transition-colors hover:bg-muted/50",
-          dragging && "border-primary bg-muted",
+          "flex h-32 w-full flex-col items-center justify-center gap-1 rounded-lg border-2 border-dashed bg-card px-3 text-center text-muted-foreground transition-colors hover:bg-brand-soft/60",
+          dragging && "border-primary bg-brand-soft",
           pending && "cursor-wait",
         )}
       >
@@ -192,6 +194,7 @@ export function UploadPanel({ isDemo, userDailyLimit }: { isDemo: boolean; userD
           <span role="status">{status ?? "읽는 중…"}</span>
         ) : (
           <>
+            <UploadIcon aria-hidden="true" className="mb-1 size-5 text-primary" />
             <span className="font-medium text-foreground">금융사 파일을 끌어다 놓거나 눌러서 고르세요</span>
             <span>여러 개를 한 번에 올릴 수 있습니다. 파일은 이 브라우저에서 읽고, 원본 파일은 서버로 보내지 않습니다.</span>
           </>
@@ -216,53 +219,66 @@ export function UploadPanel({ isDemo, userDailyLimit }: { isDemo: boolean; userD
       )}
 
       {entries.length > 0 && (
-        <section>
-          <h2 className="mb-1 font-semibold text-muted-foreground">이번 결과</h2>
+        <Panel title="이번 결과">
+          {/* 좁은 폭(md 아래)에서는 금융사·계정·기간·넣은 수·지운 수를 파일 이름 아래 한 줄로 모아 표가 잘리지 않게 한다(design-refresh 명세서 4.6-1). */}
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>파일</TableHead>
-                  <TableHead>금융사</TableHead>
-                  <TableHead>계정</TableHead>
-                  <TableHead>기간</TableHead>
-                  <TableHead className="text-right">넣은 수</TableHead>
-                  <TableHead className="text-right">지운 수</TableHead>
+                  <TableHead className="hidden md:table-cell">금융사</TableHead>
+                  <TableHead className="hidden md:table-cell">계정</TableHead>
+                  <TableHead className="hidden md:table-cell">기간</TableHead>
+                  <TableHead className="hidden text-right md:table-cell">넣은 수</TableHead>
+                  <TableHead className="hidden text-right md:table-cell">지운 수</TableHead>
                   <TableHead>상태</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {entries.map(({ result: r }, i) => (
                   <TableRow key={i}>
-                    <TableCell className="max-w-56 truncate">{r.fileName}</TableCell>
-                    <TableCell>{r.institution ? INSTITUTION_LABELS[r.institution] : ""}</TableCell>
-                    <TableCell>
+                    <TableCell className="max-w-56 whitespace-normal break-all md:truncate md:break-normal md:whitespace-nowrap">
+                      {r.fileName}
+                      <div className="mt-0.5 text-xs break-keep text-muted-foreground md:hidden">
+                        {[
+                          r.institution && INSTITUTION_LABELS[r.institution],
+                          r.status !== "error" && r.account.name,
+                          r.period && `${r.period.start} ~ ${r.period.end}`,
+                          r.status === "applied" && `넣음 ${formatNumber(r.insertedCount)} · 지움 ${formatNumber(r.deletedCount)}`,
+                          r.status === "needs_confirm" && `넣음 ${formatNumber(r.insertCount)} · 지움 ${formatNumber(r.deleteCount)}`,
+                        ]
+                          .filter(Boolean)
+                          .join(" · ")}
+                      </div>
+                    </TableCell>
+                    <TableCell className="hidden md:table-cell">{r.institution ? INSTITUTION_LABELS[r.institution] : ""}</TableCell>
+                    <TableCell className="hidden md:table-cell">
                       {r.status !== "error" && (
                         <Link href={`/transactions?account=${r.account.id}&month=${r.period.end.slice(0, 7)}`} className="hover:underline">
                           {r.account.name}
                         </Link>
                       )}
                     </TableCell>
-                    <TableCell className="tabular-nums">{r.period && `${r.period.start} ~ ${r.period.end}`}</TableCell>
-                    <TableCell className="text-right tabular-nums">
+                    <TableCell className="hidden tabular-nums md:table-cell">{r.period && `${r.period.start} ~ ${r.period.end}`}</TableCell>
+                    <TableCell className="hidden text-right tabular-nums md:table-cell">
                       {r.status === "applied" && formatNumber(r.insertedCount)}
                       {r.status === "needs_confirm" && <span className="text-muted-foreground">{formatNumber(r.insertCount)}</span>}
                     </TableCell>
-                    <TableCell className="text-right tabular-nums">
+                    <TableCell className="hidden text-right tabular-nums md:table-cell">
                       {r.status === "applied" && formatNumber(r.deletedCount)}
                       {r.status === "needs_confirm" && <span className="text-muted-foreground">{formatNumber(r.deleteCount)}</span>}
                     </TableCell>
-                    <TableCell>
-                      {r.status === "applied" && <span className="text-green-700">반영함{r.createdAccount && "(계정 만듦)"}</span>}
+                    <TableCell className="whitespace-normal md:whitespace-nowrap">
+                      {r.status === "applied" && <span className="text-primary">반영함{r.createdAccount && "(계정 만듦)"}</span>}
                       {/* 이번 반영에서 새로 생긴 보정만 보여준다(4단계 파일 6.2). */}
                       {r.status === "applied" && r.newAdjustments.count > 0 && (
-                        <div className="text-xs whitespace-normal text-amber-700">
+                        <div className="text-xs whitespace-normal text-notice-foreground">
                           보정 {formatNumber(r.newAdjustments.count)}건, 합계 <Money value={r.newAdjustments.total} plus />
                         </div>
                       )}
                       {r.status === "applied" && <CategoryLine counts={r.categories} />}
                       {r.status === "needs_confirm" && (
-                        <Button variant="link" size="xs" className="h-auto px-0 text-amber-700" disabled={pending} onClick={() => setConfirmOpen(true)}>
+                        <Button variant="link" size="xs" className="h-auto px-0 text-notice-foreground" disabled={pending} onClick={() => setConfirmOpen(true)}>
                           확인 필요
                         </Button>
                       )}
@@ -284,13 +300,13 @@ export function UploadPanel({ isDemo, userDailyLimit }: { isDemo: boolean; userD
             </Table>
           </div>
           {classifyInfo?.classifyError && (
-            <div className="mt-2 flex flex-wrap items-center gap-2 text-amber-700">
+            <div className="mt-2 flex flex-wrap items-center gap-2 text-notice-foreground">
               <span>{classifyErrorMessage(classifyInfo.classifyError)}</span>
               {!limited && <ReclassifyButton />}
             </div>
           )}
-          {limited && <p className="mt-2 text-amber-700">{classifyLimitMessage(userDailyLimit)}</p>}
-        </section>
+          {limited && <p className="mt-2 text-notice-foreground">{classifyLimitMessage(userDailyLimit)}</p>}
+        </Panel>
       )}
 
       <ConfirmDialog
@@ -351,7 +367,9 @@ export function UploadPanel({ isDemo, userDailyLimit }: { isDemo: boolean; userD
             <Button variant="outline" onClick={() => setDemoOpen(false)}>
               닫기
             </Button>
-            <Button render={<a href="/api/auth/login" />}>구글로 로그인</Button>
+            <a href="/api/auth/login" className={buttonVariants()}>
+              구글로 로그인
+            </a>
           </DialogFooter>
         </DialogContent>
       </Dialog>

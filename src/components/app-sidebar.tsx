@@ -15,7 +15,8 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar";
-import { NAV_ITEMS } from "@/components/app-nav";
+import { UploadIcon } from "lucide-react";
+import { ADMIN_NAV, NAV_ITEMS, SETTINGS_NAV } from "@/components/app-nav";
 import { LogoMark } from "@/components/logo";
 import { cn } from "@/lib/utils";
 
@@ -29,8 +30,8 @@ export function AppSidebar({ footer, isAdmin, isDemo }: { footer: ReactNode; isA
   const close = () => isMobile && setOpenMobile(false);
   const items = [
     ...NAV_ITEMS,
-    ...(isDemo ? [] : [{ href: "/settings", label: "설정" } as const]),
-    ...(isAdmin ? [{ href: "/admin", label: "관리자" } as const] : []),
+    ...(isDemo ? [] : [SETTINGS_NAV]),
+    ...(isAdmin ? [ADMIN_NAV] : []),
   ];
 
   return (
@@ -41,6 +42,7 @@ export function AppSidebar({ footer, isAdmin, isDemo }: { footer: ReactNode; isA
           Wonbook
         </Link>
         <Link href="/upload" className={cn(buttonVariants({ size: "lg" }), "w-full")} onClick={close}>
+          <UploadIcon />
           파일 올리기
         </Link>
       </SidebarHeader>
@@ -50,6 +52,7 @@ export function AppSidebar({ footer, isAdmin, isDemo }: { footer: ReactNode; isA
             {items.map((item) => (
               <SidebarMenuItem key={item.href}>
                 <SidebarMenuButton isActive={isActive(item.href)} render={<Link href={item.href} onClick={close} />}>
+                  <item.icon />
                   <span>{item.label}</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>

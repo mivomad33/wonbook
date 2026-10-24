@@ -87,6 +87,17 @@ export function summarizeTransactions(rows: { amount: number; deletedAt: string 
   };
 }
 
+// 거래 목록을 날짜별로 묶는다(design-refresh 명세서 4.4-2). 목록의 정렬 순서(날짜 순서와 날짜 안 순서)를 그대로 둔다.
+export function groupByDate<T extends { date: string }>(rows: readonly T[]): [string, T[]][] {
+  const groups: [string, T[]][] = [];
+  for (const r of rows) {
+    const last = groups[groups.length - 1];
+    if (last && last[0] === r.date) last[1].push(r);
+    else groups.push([r.date, [r]]);
+  }
+  return groups;
+}
+
 // 그 사용자의 거래 하나. 없거나 남의 거래면 UserError.
 async function getTransaction(db: DbOrTx, userId: number, id: number) {
   const [row] = await db

@@ -4,6 +4,7 @@ import { and, asc, eq, max, ne, sql } from "drizzle-orm";
 import type { DbOrTx } from "@/db/client";
 import { categories, type CategoryGroup, transactions } from "@/db/schema";
 import { type CategoryInput, isFixedCategory } from "@/lib/category-form";
+import { DEFAULT_CATEGORY_ICON, pickCategoryColor } from "@/lib/category-style";
 import { UserError } from "@/lib/user-error";
 
 // select 안의 컬럼은 테이블 이름 없이 렌더링돼 하위 쿼리에서 잘못 읽히므로 테이블 이름을 붙여 쓴다(design.md 2.3).
@@ -14,7 +15,7 @@ const groupOrder = sql`case ${categories.group} when 'expense' then 0 when 'inco
 // 묶음(지출 → 수입 → 이동) 안에서 sort_order 순. 화면의 선택 목록과 카테고리 화면이 같은 순서를 쓴다.
 export async function listCategoryOptions(db: DbOrTx, userId: number) {
   return db
-    .select({ id: categories.id, name: categories.name, group: categories.group })
+    .select({ id: categories.id, name: categories.name, group: categories.group, color: categories.color, icon: categories.icon })
     .from(categories)
     .where(eq(categories.userId, userId))
     .orderBy(groupOrder, asc(categories.sortOrder), asc(categories.id));
@@ -27,6 +28,8 @@ export async function listCategories(db: DbOrTx, userId: number) {
       id: categories.id,
       name: categories.name,
       group: categories.group,
+      color: categories.color,
+      icon: categories.icon,
       transactionCount: sql<number>`(select count(*) from transactions t where t.category_id = ${outerCategoryId} and t.deleted_at is null)`.mapWith(Number),
       ruleCount: sql<number>`(select count(*) from category_rules r where r.category_id = ${outerCategoryId})`.mapWith(Number),
     })
@@ -69,24 +72,40 @@ async function nextSortOrder(db: DbOrTx, userId: number, group: CategoryGroup): 
   return row?.max == null ? 0 : row.max + 1;
 }
 
+// 색을 고르지 않았으면 묶음 안에서 가장 적게 쓴 색, 아이콘은 기본 아이콘을 준다(design-refresh 명세서 4.5-4).
+async function autoColor(db: DbOrTx, userId: number, group: CategoryGroup) {
+  const rows = await db
+    .select({ color: categories.color })
+    .from(categories)
+    .where(and(eq(categories.userId, userId), eq(categories.group, group)));
+  return pickCategoryColor(group, rows.map((r) => r.color));
+}
+
 export async function createCategory(db: DbOrTx, userId: number, input: CategoryInput): Promise<number> {
   await assertNameFree(db, userId, input.name);
   const [row] = await db
     .insert(categories)
-    .values({ ...input, userId, sortOrder: await nextSortOrder(db, userId, input.group) })
+    .values({
+      ...input,
+      color: input.color ?? (await autoColor(db, userId, input.group)),
+      icon: input.icon ?? DEFAULT_CATEGORY_ICON,
+      userId,
+      sortOrder: await nextSortOrder(db, userId, input.group),
+    })
     .returning({ id: categories.id });
   return row.id;
 }
 
-// 이름과 묶음을 고친다. 묶음을 바꾸면 새 묶음의 맨 뒤로 간다.
+// 이름·묶음·색·아이콘을 고친다. 묶음을 바꾸면 새 묶음의 맨 뒤로 간다.
+// "기타" 카테고리는 이름·묶음은 못 바꾸지만 색·아이콘은 바꿀 수 있다. 색·아이콘을 비우면 그대로 둔다.
 export async function updateCategory(db: DbOrTx, userId: number, id: number, input: CategoryInput): Promise<void> {
   const current = await getCategory(db, userId, id);
-  assertNotFixed(current.name);
+  if (current.name !== input.name || current.group !== input.group) assertNotFixed(current.name);
   await assertNameFree(db, userId, input.name, id);
   const sortOrder = current.group === input.group ? current.sortOrder : await nextSortOrder(db, userId, input.group);
   await db
     .update(categories)
-    .set({ ...input, sortOrder })
+    .set({ name: input.name, group: input.group, color: input.color ?? current.color, icon: input.icon ?? current.icon, sortOrder })
     .where(and(eq(categories.id, id), eq(categories.userId, userId)));
 }
 

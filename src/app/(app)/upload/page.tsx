@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { requireUser } from "@/auth/current";
 import { PageHeader } from "@/components/page-header";
+import { Panel } from "@/components/panel";
 import { PendingNotice } from "@/components/pending-notice";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { getAppDb } from "@/db/client";
@@ -41,8 +42,7 @@ async function Content() {
 async function RecentImports({ userId, isDemo }: { userId: number; isDemo: boolean }) {
   const rows = await listRecentImports(getAppDb(), userId);
   return (
-    <section>
-      <h2 className="mb-1 font-semibold text-muted-foreground">최근 업로드 기록</h2>
+    <Panel title="최근 업로드 기록">
       <div className="overflow-x-auto">
         <Table>
           <TableHeader>
@@ -87,6 +87,6 @@ async function RecentImports({ userId, isDemo }: { userId: number; isDemo: boole
         </Table>
       </div>
       <p className="mt-2 text-xs text-muted-foreground">계정마다 가장 최근 업로드 하나를 되돌릴 수 있습니다. 되돌리면 올리기 전 거래와 잔액으로 돌아갑니다.</p>
-    </section>
+    </Panel>
   );
 }

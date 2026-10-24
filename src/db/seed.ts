@@ -1,4 +1,5 @@
-// 확인용 시드 데이터(design.md 4.5). 사용자 한 명에게 실행한 날(한국 시간)을 기준으로 이번 달과 앞의 두 달 치를 넣는다.
+// 확인용 시드 데이터(design.md 4.5). 사용자 한 명에게 실행한 날(한국 시간)을 기준으로 이번 달과 앞의 다섯 달 치(6개월)를 넣는다.
+// 월별 화면의 최근 6개월 추이에 막대가 모두 보이게 한다(design-refresh 명세서 4.7).
 // 개발 DB의 테스트 사용자와 읽기 전용 데모 사용자(4.5)가 같이 쓴다.
 // 앱 규칙을 따르도록 lib/의 입력 함수를 거친다. 업로드 거래는 브라우저가 보내는 값(UploadedFile)을 만들어 업로드 코드(applyImport)로 넣는다(3단계 파일 8.1).
 // 계좌 식별값은 누가 봐도 가짜인 번호(0으로 채운 번호)로 만든다.
@@ -12,21 +13,27 @@ import { applyImport, type UploadedFile, type UploadedTransaction } from "@/lib/
 import { type AccountKeyRef, toAccountKeyRef } from "@/lib/privacy/account-key";
 import { createTransaction, createTransfer, setTransactionDeleted, updateTransaction } from "@/lib/transactions";
 
-// amount를 세 값으로 주면 달마다(첫 달, 가운데 달, 이번 달) 다른 금액이다. month를 주면 그 달(0~2)에만 넣는다(6단계 파일 6장).
+// 시드 내용이 바뀌면 올린다. 데모는 이 값이 바뀌면 데이터를 다시 만든다(auth/demo.ts, design-refresh 명세서 4.7-2).
+export const SEED_VERSION = 3;
+
+const MONTH_COUNT = 6;
+type MonthIndex = 0 | 1 | 2 | 3 | 4 | 5;
+
+// amount를 여섯 값으로 주면 달마다(첫 달 … 이번 달) 다른 금액이다. month를 주면 그 달(0~5, 5가 이번 달)에만 넣는다(6단계 파일 6장).
 type Upload = {
   day: number;
   time?: string;
-  amount: number | readonly [number, number, number];
+  amount: number | readonly [number, number, number, number, number, number];
   description: string;
   method?: string;
   cardLabel?: string;
-  month?: 0 | 1 | 2;
+  month?: MonthIndex;
 };
 
 export async function seed(db: DbOrTx, userId: number, options: { now?: Date } = {}) {
   const now = today(options.now);
   const thisMonth = now.slice(0, 7);
-  const months = [shiftMonth(thisMonth, -2), shiftMonth(thisMonth, -1), thisMonth];
+  const months = Array.from({ length: MONTH_COUNT }, (_, i) => shiftMonth(thisMonth, i - MONTH_COUNT + 1));
   const firstMonth = months[0];
   // 이번 달 거래는 오늘까지만 넣는다.
   const dateOf = (month: string, day: number) => {
@@ -72,7 +79,7 @@ export async function seed(db: DbOrTx, userId: number, options: { now?: Date } =
     openingDate: null,
   });
 
-  // 계정마다 석 달 치를 파일 하나로 넣는다. 기간은 첫 달 1일 ~ 오늘, 파일 이름은 `시드-<계정>`. 넣은 거래 id를 넣은 순서(seq)대로 돌려준다.
+  // 계정마다 여섯 달 치를 파일 하나로 넣는다. 기간은 첫 달 1일 ~ 오늘, 파일 이름은 `시드-<계정>`. 넣은 거래 id를 넣은 순서(seq)대로 돌려준다.
   // actualStart를 주면 그 값에서 시작해 거래 후 잔액(balance_after)을 채운다. 기초 잔액과 다르면 보정 거래가 생긴다(4단계 파일 7장).
   const upload = async (
     accountId: number,
@@ -114,26 +121,28 @@ export async function seed(db: DbOrTx, userId: number, options: { now?: Date } =
   const salaryUploads: Upload[] = [
     { day: 1, time: "09:12", amount: -650_000, description: "월세", method: "자동이체" },
     { day: 10, time: "08:30", amount: 3_200_000, description: "(주)원북 급여", method: "급여" },
-    { day: 15, time: "10:05", amount: [-412_300, -655_800, -298_400], description: "하나카드 결제", method: "자동이체" },
-    { day: 17, time: "11:20", amount: 450_000, description: "크몽 정산", method: "타행입금", month: 1 },
-    { day: 20, time: "18:44", amount: [-38_000, -41_500, -39_200], description: "통신요금", method: "자동이체" },
+    { day: 15, time: "10:05", amount: [-356_100, -471_900, -503_200, -412_300, -655_800, -298_400], description: "하나카드 결제", method: "자동이체" },
+    { day: 17, time: "11:20", amount: 450_000, description: "크몽 정산", method: "타행입금", month: 4 },
+    { day: 20, time: "18:44", amount: [-37_400, -40_100, -38_800, -38_000, -41_500, -39_200], description: "통신요금", method: "자동이체" },
     { day: 22, time: "20:10", amount: -300_000, description: "홍길동", method: "스마트출금" },
     // 비상금으로 보내는 돈. 비상금 업로드의 "하나 급여통장" 입금과 짝이다(이동 표의 나감·들어옴).
     { day: 23, time: "09:30", amount: -200_000, description: "카카오 비상금", method: "스마트출금" },
   ];
-  // 이번 달 인터파크 환불은 앞 달 결제의 환불이라, 이번 달 여가·여행이 음수가 된다. 이번 달 거래는 오늘까지만 들어가므로 1일에 둔다.
+  // 이번 달 인터파크 환불은 앞 달 결제의 환불이라, 이번 달 여가·여행이 음수가 된다. 이번 달 거래는 오늘까지만 들어가므로 월초(2일)에 둔다.
+  // 1일 주유는 환불보다 커서, 월초에도 이번 달 카드 사용이 0보다 크다(design-refresh 명세서 4.7-1).
   const cardUploads: Upload[] = [
-    { day: 1, time: "10:12", amount: 88_000, description: "인터파크 티켓 취소", cardLabel: "본인 1234", month: 2 },
-    { day: 3, time: "12:31", amount: [-9_800, -12_500, -8_900], description: "김밥천국", cardLabel: "본인 1234" },
-    { day: 7, time: "19:02", amount: [-54_200, -71_300, -48_600], description: "이마트", cardLabel: "본인 1234" },
-    { day: 9, time: "07:50", amount: -3_000, description: "GS25", method: "포인트리", cardLabel: "본인 1234", month: 1 },
+    { day: 1, time: "08:40", amount: [-92_000, -98_500, -95_300, -101_200, -93_700, -96_400], description: "동네주유소", cardLabel: "본인 1234" },
+    { day: 2, time: "10:12", amount: 88_000, description: "인터파크 티켓 취소", cardLabel: "본인 1234", month: 5 },
+    { day: 3, time: "12:31", amount: [-11_200, -7_600, -10_400, -9_800, -12_500, -8_900], description: "김밥천국", cardLabel: "본인 1234" },
+    { day: 7, time: "19:02", amount: [-61_800, -49_900, -66_400, -54_200, -71_300, -48_600], description: "이마트", cardLabel: "본인 1234" },
+    { day: 9, time: "07:50", amount: -3_000, description: "GS25", method: "포인트리", cardLabel: "본인 1234", month: 4 },
     { day: 12, time: "08:15", amount: -4_500, description: "스타벅스", cardLabel: "본인 1234" },
-    { day: 16, time: "22:05", amount: -320_000, description: "야놀자", cardLabel: "본인 1234", month: 0 },
+    { day: 16, time: "22:05", amount: -320_000, description: "야놀자", cardLabel: "본인 1234", month: 3 },
     { day: 18, time: "21:40", amount: -129_000, description: "쿠팡", cardLabel: "본인 1234" },
     { day: 19, time: "10:00", amount: 129_000, description: "쿠팡 취소", cardLabel: "본인 1234" },
     { day: 25, time: "13:20", amount: -32_000, description: "올리브영", cardLabel: "가족 5678" },
     { day: 26, time: "17:30", amount: -25_000, description: "별빛헤어", cardLabel: "본인 1234" },
-    { day: 27, time: "14:00", amount: -88_000, description: "인터파크 티켓", cardLabel: "본인 1234", month: 1 },
+    { day: 27, time: "14:00", amount: -88_000, description: "인터파크 티켓", cardLabel: "본인 1234", month: 4 },
   ];
 
   // 저장된 분류(5단계 파일 9장). 업로드 거래는 applyImport로 들어가 규칙이 있으면 saved로 붙는다.
@@ -155,6 +164,7 @@ export async function seed(db: DbOrTx, userId: number, options: { now?: Date } =
     ["홍길동", "육아·교육", "user"],
     ["김밥천국", "외식·배달", "ai"],
     ["이마트", "장보기", "ai"],
+    ["동네주유소", "교통·차량", "ai"],
     ["스타벅스", "카페·간식", "ai"],
     ["쿠팡", "쇼핑·의류", "ai"],
     ["쿠팡 취소", "쇼핑·의류", "ai"],

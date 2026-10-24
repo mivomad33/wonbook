@@ -56,7 +56,7 @@ describe("거래 CSV 내보내기(4.2-5)", () => {
     expect(new Set(rows.map((r) => r[8]))).toEqual(new Set(["일반", "이체", "보정"]));
     expect(rows.filter((r) => r[9] === "삭제")).toHaveLength(1);
     // 카테고리와 금액
-    expect(rows.find((r) => r[4] === "경조사 현금")).toEqual(["하나 급여통장", "2026-08-14", "", "-20000", "경조사 현금", "", "직접 입력", "경조사·기부", "일반", ""]);
+    expect(rows.find((r) => r[4] === "경조사 현금")).toEqual(["하나 급여통장", "2026-05-14", "", "-20000", "경조사 현금", "", "직접 입력", "경조사·기부", "일반", ""]);
 
     const other = parseCsv((await exportTransactionsCsv(db, b)).slice(1));
     expect(other).toEqual([[...CSV_HEADER], ["B 지갑", "2026-10-01", "", "-500", "B만의 거래", "", "", "", "일반", ""]]);

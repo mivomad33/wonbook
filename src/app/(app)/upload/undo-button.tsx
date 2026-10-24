@@ -4,7 +4,7 @@ import { useState } from "react";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { Money } from "@/components/money";
 import { TransactionTags } from "@/components/transaction-tags";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableRow } from "@/components/ui/table";
 import { formatNumber } from "@/lib/format";
@@ -42,7 +42,9 @@ export function UndoButton({ importId, label, isDemo }: { importId: number; labe
               <Button variant="outline" onClick={() => setDemoOpen(false)}>
                 닫기
               </Button>
-              <Button render={<a href="/api/auth/login" />}>구글로 로그인</Button>
+              <a href="/api/auth/login" className={buttonVariants()}>
+                구글로 로그인
+              </a>
             </DialogFooter>
           </DialogContent>
         </Dialog>

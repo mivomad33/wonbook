@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
-import { CategoryBadge, type CategoryOption } from "@/components/category-select";
+import { CategoryBadgeSelect, type CategoryOption } from "@/components/category-select";
 import { useDemoGuard } from "@/components/demo-guard";
 import { formatNumber } from "@/lib/format";
 import type { TransactionListItem } from "@/lib/transactions";
@@ -30,7 +30,7 @@ export function CategoryCell({ row, categories }: { row: TransactionListItem; ca
 
   return (
     <div className="flex flex-wrap items-center gap-1.5">
-      <CategoryBadge
+      <CategoryBadgeSelect
         categories={categories}
         categoryId={row.categoryId}
         name={row.categoryName}

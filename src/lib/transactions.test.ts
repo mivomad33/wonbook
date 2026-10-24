@@ -9,6 +9,7 @@ import type { TransactionInput, TransferInput } from "@/lib/transaction-form";
 import {
   createTransaction,
   createTransfer,
+  groupByDate,
   listTransactions,
   setTransactionDeleted,
   summarizeTransactions,
@@ -255,5 +256,26 @@ describe("거래 목록", () => {
         { amount: 5_000, deletedAt: "2026-10-19T00:00:00.000Z" },
       ]),
     ).toEqual({ count: 3, income: 1_000, expense: 500 });
+  });
+});
+
+// 거래 목록 날짜 묶음(design-refresh 명세서 4.4-2): 순서는 그대로 두고 이어진 같은 날짜끼리 묶는다.
+describe("날짜별 묶음", () => {
+  it("정렬 순서를 바꾸지 않고, 묶음 안 거래 수의 합이 전체와 같다", () => {
+    const rows = [
+      { id: 1, date: "2026-10-23" },
+      { id: 2, date: "2026-10-23" },
+      { id: 3, date: "2026-10-22" },
+      { id: 4, date: "2026-10-20" },
+      { id: 5, date: "2026-10-20" },
+    ];
+    const groups = groupByDate(rows);
+    expect(groups.map(([d, list]) => [d, list.map((r) => r.id)])).toEqual([
+      ["2026-10-23", [1, 2]],
+      ["2026-10-22", [3]],
+      ["2026-10-20", [4, 5]],
+    ]);
+    expect(groups.flatMap(([, list]) => list)).toEqual(rows);
+    expect(groupByDate([])).toEqual([]);
   });
 });

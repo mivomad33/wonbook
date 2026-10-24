@@ -2,8 +2,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { expect, type Page, type TestInfo } from "@playwright/test";
 
-// 스크린샷은 저장소 밖(비공개 문서 폴더의 명세서 아래)에 둔다(4.9-2).
-const SHOTS = path.join(process.cwd(), "docs/specs/2026-10-public-multiuser/evidence/e2e");
+// 스크린샷은 저장소 밖(비공개 문서 폴더의 지금 명세서 아래)에 둔다(public-multiuser 4.9-2, design-refresh 4.8-1).
+const SHOTS = path.join(process.cwd(), "docs/specs/2026-10-design-refresh/evidence/e2e");
 export const FEEDBACK_HREF = `mailto:mivomad33@gmail.com?subject=${encodeURIComponent("Wonbook 의견")}`;
 
 /** 개발 서버가 첫 연결 때 다시 읽을 수 있어 잠시 기다린 뒤 하이드레이션을 확인한다. */

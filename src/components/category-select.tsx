@@ -1,14 +1,15 @@
 "use client";
 
-import type { ComponentProps } from "react";
-import { Tag } from "@/components/tag";
+import { type ComponentProps, useState } from "react";
+import { CategoryBadge, CategoryDot } from "@/components/category-style";
 import { NativeSelect, NativeSelectOptGroup, NativeSelectOption } from "@/components/ui/native-select";
 import { CATEGORY_GROUPS, type CategoryGroup } from "@/db/schema";
 import { CATEGORY_GROUP_LABELS } from "@/lib/labels";
 import { cn } from "@/lib/utils";
 
 // 화면에 넘기는 카테고리 정보. 목록은 카테고리 화면과 같은 순서(묶음 → sort_order)로 넘긴다(5단계 파일 8장).
-export type CategoryOption = { id: number; name: string; group: CategoryGroup };
+// color는 카테고리 색 이름이다(design-refresh 명세서 4.5).
+export type CategoryOption = { id: number; name: string; group: CategoryGroup; color: string };
 
 function GroupedOptions({ categories }: { categories: CategoryOption[] }) {
   return CATEGORY_GROUPS.map((group) => {
@@ -26,13 +27,32 @@ function GroupedOptions({ categories }: { categories: CategoryOption[] }) {
   });
 }
 
+// 브라우저 기본 선택 상자는 항목마다 색을 칠할 수 없어서, 고른 카테고리의 색 점을 상자 앞에 둔다(design-refresh 명세서 4.5-5).
+function SelectedDot({ categories, value }: { categories: CategoryOption[]; value: unknown }) {
+  const selected = categories.find((c) => String(c.id) === String(value ?? ""));
+  return <CategoryDot color={selected?.color ?? null} className={cn(!selected && "opacity-60")} />;
+}
+
 // 폼용 카테고리 선택(수동 거래 폼, 5단계 파일 2장). 비우면 미분류.
-export function CategorySelect({ categories, ...props }: Omit<ComponentProps<typeof NativeSelect>, "children"> & { categories: CategoryOption[] }) {
+export function CategorySelect({
+  categories,
+  ...props
+}: Omit<ComponentProps<typeof NativeSelect>, "children"> & { categories: CategoryOption[] }) {
+  const [value, setValue] = useState(props.value ?? props.defaultValue ?? "");
   return (
-    <NativeSelect {...props}>
-      <NativeSelectOption value="">미분류</NativeSelectOption>
-      <GroupedOptions categories={categories} />
-    </NativeSelect>
+    <span className="flex items-center gap-2">
+      <SelectedDot categories={categories} value={props.value ?? value} />
+      <NativeSelect
+        {...props}
+        onChange={(e) => {
+          setValue(e.target.value);
+          props.onChange?.(e);
+        }}
+      >
+        <NativeSelectOption value="">미분류</NativeSelectOption>
+        <GroupedOptions categories={categories} />
+      </NativeSelect>
+    </span>
   );
 }
 
@@ -50,25 +70,28 @@ export function CategoryFilterSelect({
   onChange: (value: CategoryFilterValue) => void;
 }) {
   return (
-    <NativeSelect
-      aria-label="카테고리"
-      className="w-40"
-      value={value == null ? "" : String(value)}
-      onChange={(e) => {
-        const v = e.target.value;
-        onChange(v === "" ? null : v === "none" ? "none" : Number(v));
-      }}
-    >
-      <NativeSelectOption value="">카테고리 전체</NativeSelectOption>
-      <NativeSelectOption value="none">미분류</NativeSelectOption>
-      <GroupedOptions categories={categories} />
-    </NativeSelect>
+    <span className="flex items-center gap-2">
+      {value !== null && <SelectedDot categories={categories} value={value} />}
+      <NativeSelect
+        aria-label="카테고리"
+        className="w-40"
+        value={value == null ? "" : String(value)}
+        onChange={(e) => {
+          const v = e.target.value;
+          onChange(v === "" ? null : v === "none" ? "none" : Number(v));
+        }}
+      >
+        <NativeSelectOption value="">카테고리 전체</NativeSelectOption>
+        <NativeSelectOption value="none">미분류</NativeSelectOption>
+        <GroupedOptions categories={categories} />
+      </NativeSelect>
+    </span>
   );
 }
 
-// 카테고리 배지(design.md 3.2). 미분류는 흐리게 보여준다. onChange가 있으면 눌러서 바로 고른다(5단계 파일 7.1).
+// 고를 수 있는 카테고리 배지(색 점과 이름, design-refresh 명세서 4.5-5). 미분류는 회색이다. onChange가 있으면 눌러서 바로 고른다(5단계 파일 7.1).
 // 목록을 띄우는 데 브라우저 기본 선택 상자를 배지 위에 투명하게 겹쳐 쓴다. 묶음(optgroup)과 키보드 선택이 그대로 된다.
-export function CategoryBadge({
+export function CategoryBadgeSelect({
   categories,
   categoryId,
   name,
@@ -81,7 +104,8 @@ export function CategoryBadge({
   disabled?: boolean;
   onChange?: (categoryId: number) => void;
 }) {
-  const tag = <Tag className={cn(categoryId == null && "opacity-60", onChange && "group-hover:bg-accent group-hover:text-accent-foreground")}>{name ?? "미분류"}</Tag>;
+  const color = categories.find((c) => c.id === categoryId)?.color ?? null;
+  const tag = <CategoryBadge name={categoryId == null ? null : name} color={color} className={cn(onChange && "group-hover:brightness-95")} />;
   if (!onChange) return tag;
   return (
     <span className="group relative inline-flex">

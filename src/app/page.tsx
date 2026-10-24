@@ -7,6 +7,10 @@ import { EyeOff, FileLock, Hash, ShieldCheck, Trash2 } from "lucide-react";
 import { buttonVariants } from "@/components/ui/button";
 import { FeedbackLink } from "@/components/feedback-link";
 import { LogoMark } from "@/components/logo";
+import { CategoryBadge } from "@/components/category-style";
+import { CategoryBreakdown } from "@/components/category-breakdown";
+import { Money } from "@/components/money";
+import { StatCard } from "@/components/panel";
 import { REPO_URL, SITE_NAME, SITE_URL } from "@/config";
 import { cn } from "@/lib/utils";
 import { LoginError } from "./_landing/login-error";
@@ -62,7 +66,7 @@ const Th = ({ className, children }: { className?: string; children: React.React
   <th className={cn("bg-muted/50 px-2.5 py-1.5 text-left text-xs font-medium text-muted-foreground", className)}>{children}</th>
 );
 const Badge = ({ children }: { children: React.ReactNode }) => (
-  <span className="inline-block rounded-full bg-muted px-2 text-xs text-muted-foreground">{children}</span>
+  <span className="inline-block rounded-full bg-brand-soft px-2 text-xs font-semibold text-brand-soft-foreground">{children}</span>
 );
 const Card = ({ className, children }: { className?: string; children: React.ReactNode }) => (
   <div className={cn("rounded-xl border bg-card", className)}>{children}</div>
@@ -117,7 +121,7 @@ export default function LandingPage() {
             <br />
             가계부 정리 끝
           </h1>
-          <p className="mt-4 text-base text-neutral-700 sm:text-lg">금융사에서 내려받은 거래 내역 파일을 올리면 입력, 분류, 잔액 맞추기까지 알아서 끝납니다.</p>
+          <p className="mt-4 text-base text-foreground/80 sm:text-lg">금융사에서 내려받은 거래 내역 파일을 올리면 입력, 분류, 잔액 맞추기까지 알아서 끝납니다.</p>
           <div className="mt-7 flex flex-wrap justify-center gap-2.5">
             <GoogleButton />
             <DemoButton />
@@ -155,7 +159,7 @@ export default function LandingPage() {
                   ))}
                 </tbody>
               </table>
-              <div className="mt-2.5 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-[13px]">카카오 비상금 잔액을 맞추는 보정 거래 1건을 만들었습니다.</div>
+              <div className="mt-2.5 rounded-lg border border-notice-border bg-notice px-3 py-2 text-[13px] text-notice-foreground">카카오 비상금 잔액을 맞추는 보정 거래 1건을 만들었습니다.</div>
             </Card>
           </Step>
 
@@ -172,17 +176,17 @@ export default function LandingPage() {
                 </thead>
                 <tbody>
                   {[
-                    ["10-21", "김밥천국", "외식·배달", "-9,800"],
-                    ["10-21", "이마트", "장보기", "-58,300"],
-                    ["10-20", "예금이자", "이자·배당", "+1,210"],
-                  ].map(([date, desc, cat, amount]) => (
+                    ["10-21", "김밥천국", "외식·배달", "orange", "-9,800"],
+                    ["10-21", "이마트", "장보기", "green", "-58,300"],
+                    ["10-20", "예금이자", "이자·배당", "green", "+1,210"],
+                  ].map(([date, desc, cat, color, amount]) => (
                     <tr key={desc}>
                       <Td className="text-muted-foreground">{date}</Td>
                       <Td>{desc}</Td>
                       <Td>
-                        <Badge>{cat}</Badge>
+                        <CategoryBadge name={cat} color={color} />
                       </Td>
-                      <Num className={amount.startsWith("-") ? "text-red-700" : "text-green-700"}>{amount}</Num>
+                      <Num className={amount.startsWith("-") ? "text-expense" : "text-income"}>{amount}</Num>
                     </tr>
                   ))}
                 </tbody>
@@ -191,36 +195,36 @@ export default function LandingPage() {
           </Step>
 
           <Step n={3} title="한 달이 한눈에 보입니다" body="자산 현황과 월별 수입·지출을 계정과 카드로 나눠 보여 줍니다. 잔액이 어긋나면 보정 거래로 맞춥니다.">
-            <Card className="px-4 py-3.5">
-              <div className="flex items-baseline justify-between">
-                <b>10월 카드 사용</b>
-                <b className="tabular-nums">1,284,300원</b>
+            <div className="flex flex-col gap-2.5">
+              {/* 월별 화면과 같은 요약 카드. 그림 칸이 좁은 폭(sm 미만, 설명과 나란히 놓이는 md)에서는 한 줄에 다 들어가지 않아 위아래로 쌓는다. */}
+              <div className="grid gap-2.5 sm:grid-cols-3 md:grid-cols-1 lg:grid-cols-3">
+                <StatCard compact label="수입" value={<Money value={3_412_000} className="text-income" />} />
+                <StatCard compact label="지출" value={<Money value={2_036_500} className="text-expense" />} />
+                <StatCard compact label="카드 사용" value={<Money value={1_284_300} />} />
               </div>
-              <table className={cn(table, "mt-2")}>
-                <tbody>
-                  {[
-                    ["외식·배달", "38건", "412,800원", "32%"],
-                    ["장보기", "21건", "298,100원", "23%"],
-                    ["교통·차량", null, "186,000원", "14%"],
-                    ["구독·디지털", null, "54,900원", "4%"],
-                  ].map(([cat, count, amount, ratio]) => (
-                    <tr key={cat}>
-                      <Td>
-                        {cat} {count && <Badge>{count}</Badge>}
-                      </Td>
-                      <Num>{amount}</Num>
-                      <Num className="text-muted-foreground">{ratio}</Num>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </Card>
+              <Card className="px-4 py-3.5">
+                <div className="mb-1.5 flex items-baseline justify-between">
+                  <b>10월 카드 사용</b>
+                  <span className="text-[13px] text-muted-foreground">카테고리별</span>
+                </div>
+                <div className="text-[13px]">
+                  <CategoryBreakdown
+                    lines={[
+                      { categoryId: 1, name: "외식·배달", color: "orange", amount: 412_800, ratio: 32 },
+                      { categoryId: 2, name: "장보기", color: "green", amount: 298_100, ratio: 23 },
+                      { categoryId: 3, name: "교통·차량", color: "blue", amount: 186_000, ratio: 14 },
+                      { categoryId: 4, name: "구독·디지털", color: "indigo", amount: 54_900, ratio: 4 },
+                    ]}
+                  />
+                </div>
+              </Card>
+            </div>
           </Step>
         </section>
 
         <section className={cn(wrap, "mt-18")} aria-labelledby="safety-title">
           <div className="flex items-center gap-4">
-            <span className="inline-flex size-16 flex-none items-center justify-center rounded-2xl bg-green-50 text-green-700">
+            <span className="inline-flex size-16 flex-none items-center justify-center rounded-2xl bg-brand-soft text-primary">
               <ShieldCheck className="size-10" strokeWidth={1.8} aria-hidden="true" />
             </span>
             <div>
@@ -233,7 +237,7 @@ export default function LandingPage() {
           <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {SAFETY.map(({ icon: Icon, title, body }) => (
               <Card key={title} className="p-[18px]">
-                <span className="inline-flex size-10 items-center justify-center rounded-[10px] bg-green-50 text-green-700">
+                <span className="inline-flex size-10 items-center justify-center rounded-[10px] bg-brand-soft text-primary">
                   <Icon className="size-[22px]" aria-hidden="true" />
                 </span>
                 <b className="mt-2.5 block">{title}</b>

@@ -1,10 +1,10 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { eq } from "drizzle-orm";
 import type { Db } from "@/db/client";
 import { createTestContext } from "@/db/test-db";
 import { accounts, categories, imports, transactions } from "@/db/schema";
 import { getBalances } from "@/lib/balance";
-import { buildLines, getAssetOverview, getMonthlyReport, ratioOf } from "@/lib/reports";
+import { buildLines, getAssetOverview, getMonthlyReport, getMonthlyTrend, leftoverRatio, ratioOf } from "@/lib/reports";
 
 async function addAccount(db: Db, userId: number, values: Partial<typeof accounts.$inferInsert> = {}) {
   const [row] = await db
@@ -211,5 +211,55 @@ describe("자산 현황(6단계 파일 4장)", () => {
       ["현금", null],
     ]);
     expect(overview.cards.map((a) => [a.name, a.lastPeriodEnd])).toEqual([["카드", "2026-10-10"]]);
+  });
+});
+
+describe("최근 6개월 추이(design-refresh 명세서 4.3-2)", () => {
+  it("달마다 월별 집계의 수입·지출·카드 사용과 같다(거래 없는 달은 0). 한 번의 질의로 센다", async () => {
+    const { db, userId } = await createTestContext();
+    const bank = await addAccount(db, userId, { name: "은행" });
+    const card = await addAccount(db, userId, { name: "카드", kind: "card" });
+    const ids = new Map((await db.select().from(categories).where(eq(categories.userId, userId))).map((r) => [r.name, r.id]));
+    const c = (name: string) => ids.get(name)!;
+    // 2026-06은 거래가 없다. 범위 밖(2026-04, 2026-10) 거래는 빠진다.
+    const rows: [string, number, number, string | null, Partial<typeof transactions.$inferInsert>?][] = [
+      ["2026-04-30", bank, 1_000, "급여"],
+      ["2026-05-01", bank, 2_500_000, "급여"],
+      ["2026-05-03", bank, -80_000, "외식·배달"],
+      ["2026-05-04", bank, -500_000, "카드대금"],
+      ["2026-05-05", card, -42_000, "장보기"],
+      ["2026-07-10", bank, -12_000, null],
+      ["2026-07-11", card, 5_000, "장보기"],
+      ["2026-08-31", bank, 30_000, "이자·배당"],
+      ["2026-08-31", bank, -9_000, "외식·배달", { deletedAt: "2026-09-01T00:00:00Z" }],
+      ["2026-09-01", bank, -7_000, null, { kind: "adjustment", source: "system" }],
+      ["2026-09-02", card, -11_000, null],
+      ["2026-10-01", bank, -99_000, "외식·배달"],
+    ];
+    for (const [date, accountId, amount, name, extra] of rows) await addTx(db, userId, accountId, { date, amount, categoryId: name ? c(name) : null, ...extra });
+
+    const client = (db as unknown as { $client: { query: (...args: unknown[]) => unknown } }).$client;
+    const spy = vi.spyOn(client, "query");
+    const trend = await getMonthlyTrend(db, userId, "2026-09");
+    expect(spy).toHaveBeenCalledTimes(1);
+    spy.mockRestore();
+
+    expect(trend.map((t) => t.month)).toEqual(["2026-04", "2026-05", "2026-06", "2026-07", "2026-08", "2026-09"]);
+    for (const t of trend) {
+      const { account, card: part } = await getMonthlyReport(db, userId, t.month);
+      expect(t).toEqual({ month: t.month, income: account.income, expense: account.expense, card: part.total });
+    }
+    expect(trend.find((t) => t.month === "2026-06")).toEqual({ month: "2026-06", income: 0, expense: 0, card: 0 });
+    expect(trend.find((t) => t.month === "2026-05")).toEqual({ month: "2026-05", income: 2_500_000, expense: 80_000, card: 42_000 });
+  });
+});
+
+describe("남은 돈 비율(design-refresh 명세서 4.3-1)", () => {
+  it("수입 대비 남은 돈의 정수 퍼센트이고, 수입이 0 이하이거나 남은 돈이 음수면 비운다", () => {
+    expect(leftoverRatio(3_000_000, 1_000_000)).toBe(67);
+    expect(leftoverRatio(1_000, 1_000)).toBe(0);
+    expect(leftoverRatio(0, 0)).toBeNull();
+    expect(leftoverRatio(0, 5_000)).toBeNull();
+    expect(leftoverRatio(1_000, 2_000)).toBeNull();
   });
 });

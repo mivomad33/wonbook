@@ -67,3 +67,12 @@ export function formatShortDateTime(iso: string): string {
   const [, m, d] = date.split("-").map(Number);
   return `${m}월 ${d}일 ${time}`;
 }
+
+const WEEKDAYS = ["일", "월", "화", "수", "목", "금", "토"];
+
+// 거래 목록 날짜 머리줄 "10월 23일 (목)"(design-refresh 명세서 4.4-2). 날짜 값(`YYYY-MM-DD`)으로 요일을 계산해 시간대 영향을 받지 않는다.
+export function formatDayHeader(date: string): string {
+  const [y, m, d] = date.split("-").map(Number);
+  const weekday = WEEKDAYS[new Date(Date.UTC(y, m - 1, d)).getUTCDay()];
+  return `${m}월 ${d}일 (${weekday})`;
+}

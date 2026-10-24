@@ -2,10 +2,14 @@
 import { z } from "zod";
 import { stripNul } from "@/lib/form-fields";
 import { CATEGORY_GROUPS } from "@/db/schema";
+import { CATEGORY_COLOR_NAMES, CATEGORY_ICONS } from "@/lib/category-style";
 
 export const categoryFormSchema = z.object({
   name: z.preprocess(stripNul, z.string().trim().min(1, "이름을 입력하세요.")),
   group: z.enum(CATEGORY_GROUPS, "묶음을 고르세요."),
+  // 색·아이콘은 목록 안의 값만 받는다(design-refresh 명세서 4.5-1). 새로 만들 때 비우면 서버가 고른다(4.5-4).
+  color: z.preprocess((v) => (v === "" ? undefined : v), z.enum(CATEGORY_COLOR_NAMES as [string, ...string[]], "색을 목록에서 고르세요.").optional()),
+  icon: z.preprocess((v) => (v === "" ? undefined : v), z.enum(CATEGORY_ICONS, "아이콘을 목록에서 고르세요.").optional()),
 });
 
 export type CategoryInput = z.output<typeof categoryFormSchema>;

@@ -1,15 +1,19 @@
-import { Suspense } from "react";
+import { type ReactNode, Suspense } from "react";
 import Link from "next/link";
 import { requireUser } from "@/auth/current";
-import { TablesSkeleton } from "@/components/loading";
+import { AccountKindIcon } from "@/components/account-kind-icon";
+import { ShareBar } from "@/components/charts";
+import { DashboardSkeleton } from "@/components/loading";
 import { Money } from "@/components/money";
 import { Notice } from "@/components/notice";
 import { PageHeader } from "@/components/page-header";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Columns, Panel, Stack, StatCard, StatRow } from "@/components/panel";
+import type { AccountKind } from "@/db/schema";
 import { getAppDb } from "@/db/client";
 import { listAdjustmentNotice } from "@/lib/balance/notice";
 import { daysBetween, today } from "@/lib/format";
 import { INSTITUTION_LABELS } from "@/lib/labels";
+import { shareItems } from "@/lib/asset-share";
 import { type AssetRow, getAssetOverview } from "@/lib/reports";
 import { DismissNoticeButton } from "./dismiss-notice-button";
 
@@ -21,7 +25,7 @@ export default function Page() {
       <Suspense>
         <AdjustmentNotice />
       </Suspense>
-      <Suspense fallback={<TablesSkeleton tables={2} />}>
+      <Suspense fallback={<DashboardSkeleton stats={3} panels={2} />}>
         <Overview />
       </Suspense>
     </>
@@ -44,7 +48,7 @@ async function AdjustmentNotice() {
             <Link href={`/transactions?account=${item.accountId}&month=${item.lastMonth}`} className="hover:underline">
               {item.accountName}
             </Link>
-            <span className="text-amber-900/80">
+            <span className="text-notice-foreground/80">
               {" "}
               {item.count}건, 합계 <Money value={item.total} plus />
             </span>
@@ -60,115 +64,125 @@ async function Overview() {
   const { assets, liabilities, cards, totals } = await getAssetOverview(getAppDb(), user.id);
   if (assets.length + liabilities.length + cards.length === 0) {
     return (
-      <p className="text-muted-foreground">
-        계정이 없습니다. <Link href="/accounts" className="underline">계정 관리</Link>에서 만드세요.
-      </p>
+      <Panel>
+        <p className="text-muted-foreground">
+          계정이 없습니다. <Link href="/accounts" className="underline">계정 관리</Link>에서 만드세요.
+        </p>
+      </Panel>
     );
   }
   const now = today();
 
   return (
-    <>
-      <p className="mb-3 flex flex-wrap items-baseline gap-x-4 text-muted-foreground">
-        <span>
-          자산 합계 <Money value={totals.asset} className="text-foreground" />
-        </span>
-        <span>
-          부채 합계 <Money value={totals.liability} className="text-foreground" />
-        </span>
-        <span>
-          순자산 <Money value={totals.net} className="text-lg font-semibold text-foreground" />
-        </span>
-      </p>
+    <Stack>
+      <StatRow>
+        <StatCard hero label="순자산" value={<Money value={totals.net} />} sub="자산 − 부채" />
+        <StatCard label="자산 합계" value={<Money value={totals.asset} />} sub={`계정 ${assets.length}개`} />
+        <StatCard label="부채 합계" value={<Money value={totals.liability} />} sub={`계정 ${liabilities.length}개`} />
+      </StatRow>
 
       {assets.length + liabilities.length > 0 && (
-        <Table className="w-auto min-w-[36rem]">
-          <TableHeader>
-            <TableRow>
-              <TableHead>계정</TableHead>
-              <TableHead>금융사</TableHead>
-              <TableHead className="text-right">잔액</TableHead>
-              <TableHead>올린 기간</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            <AccountGroupRows label="자산" rows={assets} subtotal={totals.asset} now={now} />
-            <AccountGroupRows label="부채" rows={liabilities} subtotal={totals.liability} now={now} />
-          </TableBody>
-        </Table>
+        <Panel title="자산과 부채" aside="계정별 비중">
+          <ShareBar label="자산과 부채의 계정별 비중" items={shareItems(assets, liabilities)} />
+        </Panel>
       )}
 
-      {cards.length > 0 && (
-        <Table className="mt-6 w-auto min-w-[36rem]">
-          <TableHeader>
-            <TableRow>
-              <TableHead>카드</TableHead>
-              <TableHead>금융사</TableHead>
-              <TableHead>올린 기간</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {cards.map((c) => (
-              <TableRow key={c.id}>
-                <TableCell>
-                  <AccountLink id={c.id} name={c.name} />
-                </TableCell>
-                <TableCell className="text-muted-foreground">{institutionLabel(c.institution)}</TableCell>
-                <TableCell>
-                  <PeriodEnd end={c.lastPeriodEnd} now={now} />
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      )}
-    </>
+      <Columns>
+        <Panel title="자산" aside={<Money value={totals.asset} />}>
+          <AccountList rows={assets} kind="asset" now={now} empty="자산 계정이 없습니다." />
+        </Panel>
+        <div className="flex flex-col gap-3.5">
+          <Panel title="부채" aside={<Money value={totals.liability} />}>
+            <AccountList rows={liabilities} kind="liability" now={now} empty="부채 계정이 없습니다." />
+          </Panel>
+          {cards.length > 0 && (
+            <Panel title="카드" aside="합계에 넣지 않습니다">
+              <ul>
+                {cards.map((c) => (
+                  <AccountItem
+                    key={c.id}
+                    id={c.id}
+                    name={c.name}
+                    kind="card"
+                    manual={c.institution == null}
+                    detail={<AccountDetail institution={c.institution} end={c.lastPeriodEnd} now={now} />}
+                    right={
+                      <span className="text-muted-foreground">
+                        이번 달 <Money value={c.monthUsage} className="text-foreground" />
+                      </span>
+                    }
+                  />
+                ))}
+              </ul>
+            </Panel>
+          )}
+        </div>
+      </Columns>
+    </Stack>
   );
 }
 
 const institutionLabel = (institution: AssetRow["institution"]) => (institution ? INSTITUTION_LABELS[institution] : "수동");
 
-function AccountLink({ id, name }: { id: number; name: string }) {
+function AccountList({ rows, kind, now, empty }: { rows: AssetRow[]; kind: "asset" | "liability"; now: string; empty: string }) {
+  if (rows.length === 0) return <p className="py-1 text-muted-foreground">{empty}</p>;
   return (
-    <Link href={`/transactions?account=${id}`} className="hover:underline">
-      {name}
-    </Link>
+    <ul>
+      {rows.map((a) => (
+        <AccountItem
+          key={a.id}
+          id={a.id}
+          name={a.name}
+          kind={kind}
+          manual={a.institution == null}
+          detail={<AccountDetail institution={a.institution} end={a.lastPeriodEnd} now={now} />}
+          right={<Money value={a.balance} className="font-semibold" />}
+        />
+      ))}
+    </ul>
   );
 }
 
-// 묶음 이름 줄, 계정 줄, 소계 줄. 계정이 없는 묶음은 보이지 않는다.
-function AccountGroupRows({ label, rows, subtotal, now }: { label: string; rows: AssetRow[]; subtotal: number; now: string }) {
-  if (rows.length === 0) return null;
+// 계정 한 줄: 종류 아이콘, 이름과 금융사·올린 기간, 오른쪽 금액. 누르면 그 계정의 거래 목록으로 간다.
+function AccountItem({
+  id,
+  name,
+  kind,
+  manual,
+  detail,
+  right,
+}: {
+  id: number;
+  name: string;
+  kind: AccountKind;
+  manual: boolean;
+  detail: ReactNode;
+  right: ReactNode;
+}) {
+  return (
+    <li className="border-b last:border-b-0">
+      <Link href={`/transactions?account=${id}`} className="flex items-center gap-2.5 py-2 hover:bg-muted/50">
+        <AccountKindIcon kind={kind} manual={manual} />
+        <span className="min-w-0 flex-1">
+          <span className="block truncate font-medium">{name}</span>
+          <span className="block text-xs text-muted-foreground">{detail}</span>
+        </span>
+        <span className="shrink-0 text-right">{right}</span>
+      </Link>
+    </li>
+  );
+}
+
+function AccountDetail({ institution, end, now }: { institution: AssetRow["institution"]; end: string | null; now: string }) {
   return (
     <>
-      <TableRow className="hover:bg-transparent">
-        <TableCell colSpan={4} className="pt-3 font-medium text-muted-foreground">
-          {label}
-        </TableCell>
-      </TableRow>
-      {rows.map((a) => (
-        <TableRow key={a.id}>
-          <TableCell className="pl-4">
-            <AccountLink id={a.id} name={a.name} />
-          </TableCell>
-          <TableCell className="text-muted-foreground">{institutionLabel(a.institution)}</TableCell>
-          <TableCell className="text-right">
-            <Money value={a.balance} />
-          </TableCell>
-          <TableCell>
-            <PeriodEnd end={a.lastPeriodEnd} now={now} />
-          </TableCell>
-        </TableRow>
-      ))}
-      <TableRow className="bg-muted/40 hover:bg-muted/40">
-        <TableCell colSpan={2} className="pl-4 text-muted-foreground">
-          {label} 소계
-        </TableCell>
-        <TableCell className="text-right font-medium">
-          <Money value={subtotal} />
-        </TableCell>
-        <TableCell />
-      </TableRow>
+      {institutionLabel(institution)}
+      {end && (
+        <>
+          {" · "}
+          <PeriodEnd end={end} now={now} />
+        </>
+      )}
     </>
   );
 }
@@ -179,7 +193,7 @@ function PeriodEnd({ end, now }: { end: string | null; now: string }) {
   const days = daysBetween(end, now);
   return (
     <span className="tabular-nums">
-      ~ {end} <span className="text-muted-foreground">({days <= 0 ? "오늘" : `${days}일 전`})</span>
+      ~ {end} ({days <= 0 ? "오늘" : `${days}일 전`})
     </span>
   );
 }

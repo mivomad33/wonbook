@@ -28,7 +28,8 @@ describe("카테고리 화면 동작", () => {
     await updateCategory(db, userId, id, { name: "부수입", group: "income" });
     await updateCategory(db, userId, id, { name: "중고 판매", group: "expense" });
     const expense = (await listCategoryOptions(db, userId)).filter((c) => c.group === "expense");
-    expect(expense.at(-1)).toEqual({ id, name: "중고 판매", group: "expense" });
+    // 색·아이콘은 이름·묶음을 바꿔도 그대로다(design-refresh 명세서 4.5)
+    expect(expense.at(-1)).toEqual({ id, name: "중고 판매", group: "expense", color: "violet", icon: "coins" });
     await expect(updateCategory(db, userId, id, { name: "장보기", group: "expense" })).rejects.toThrow(/이미 있습니다/);
   });
 

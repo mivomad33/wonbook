@@ -121,6 +121,9 @@ export const categories = pgTable(
     parentId: integer("parent_id").references((): AnyPgColumn => categories.id),
     group: text("group", { enum: CATEGORY_GROUPS }).notNull(),
     sortOrder: integer("sort_order").notNull().default(0),
+    // 화면 색·아이콘 이름(lib/category-style.ts의 목록 중 하나, design-refresh 명세서 4.5). 기본값은 회색·태그다.
+    color: text("color").notNull().default("gray"),
+    icon: text("icon").notNull().default("tag"),
     createdAt: createdAt(),
   },
   (t) => [uniqueIndex("categories_user_parent_name_unique").on(t.userId, sql`coalesce(${t.parentId}, 0)`, t.name)],

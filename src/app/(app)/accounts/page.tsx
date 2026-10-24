@@ -1,9 +1,11 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import { requireUser } from "@/auth/current";
+import { AccountKindIcon } from "@/components/account-kind-icon";
 import { TablesSkeleton } from "@/components/loading";
 import { Money } from "@/components/money";
 import { PageHeader } from "@/components/page-header";
+import { Panel, Stack } from "@/components/panel";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { getAppDb } from "@/db/client";
@@ -30,11 +32,11 @@ async function AccountGroups() {
   const user = await requireUser();
   const list = await listAccounts(getAppDb(), user.id);
   return (
-    <div className="flex flex-col gap-6">
+    <Stack>
       {ACCOUNT_KINDS.map((kind) => (
         <AccountGroup key={kind} kind={kind} accounts={list.filter((a) => a.kind === kind)} />
       ))}
-    </div>
+    </Stack>
   );
 }
 
@@ -42,8 +44,7 @@ function AccountGroup({ kind, accounts }: { kind: AccountKind; accounts: Account
   // 카드 계정은 잔액을 쓰지 않아 기초 잔액·기준일을 뺀다(2단계 파일 1.1).
   const showOpening = kind !== "card";
   return (
-    <section>
-      <h2 className="mb-1 font-semibold text-muted-foreground">{ACCOUNT_KIND_LABELS[kind]}</h2>
+    <Panel title={ACCOUNT_KIND_LABELS[kind]} aside={`${formatNumber(accounts.length)}개`}>
       <Table>
         <TableHeader>
           <TableRow>
@@ -71,9 +72,12 @@ function AccountGroup({ kind, accounts }: { kind: AccountKind; accounts: Account
                 <MoveButtons id={a.id} isFirst={i === 0} isLast={i === accounts.length - 1} />
               </TableCell>
               <TableCell>
-                <Link href={`/transactions?account=${a.id}&month=all`} className="hover:underline">
-                  {a.name}
-                </Link>
+                <span className="flex items-center gap-2">
+                  <AccountKindIcon kind={a.kind} manual={!a.institution} className="size-6" />
+                  <Link href={`/transactions?account=${a.id}&month=all`} className="hover:underline">
+                    {a.name}
+                  </Link>
+                </span>
               </TableCell>
               <TableCell>{a.institution ? INSTITUTION_LABELS[a.institution] : "수동"}</TableCell>
               <TableCell className="tabular-nums">{a.externalKeyLast4 && `··${a.externalKeyLast4}`}</TableCell>
@@ -91,6 +95,6 @@ function AccountGroup({ kind, accounts }: { kind: AccountKind; accounts: Account
           ))}
         </TableBody>
       </Table>
-    </section>
+    </Panel>
   );
 }

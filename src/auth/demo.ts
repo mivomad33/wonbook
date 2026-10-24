@@ -1,10 +1,11 @@
 // 읽기 전용 데모(4.5). 데모 전용 사용자 한 명의 가짜 가계부를 로그인하지 않은 방문자에게 보여 준다.
-// 데이터는 시드(db/seed.ts)와 같고 날짜가 "지금" 기준이라, 달이 바뀌면 다시 만들어 언제 열어도 이번 달과 앞 두 달이 보인다.
+// 데이터는 시드(db/seed.ts)와 같고 날짜가 "지금" 기준이라, 달이 바뀌면 다시 만들어 언제 열어도 이번 달과 앞 다섯 달이 보인다.
+// 시드 내용이 바뀌어도(SEED_VERSION) 다시 만든다. 배포 직후 데모가 새 시드로 보이게 하기 위해서다(design-refresh 명세서 4.7-2).
 import { and, eq, sql } from "drizzle-orm";
 import type { Db } from "@/db/client";
 import { createDefaultCategories } from "@/db/default-categories";
 import { accounts, categories, categoryRules, settings, users } from "@/db/schema";
-import { seed } from "@/db/seed";
+import { SEED_VERSION, seed } from "@/db/seed";
 import { currentMonth } from "@/lib/format";
 import type { User } from "./session";
 
@@ -26,9 +27,12 @@ async function seededMonth(db: Db, userId: number): Promise<string | null> {
   return (row?.value as string | undefined) ?? null;
 }
 
-/** 데모 사용자를 돌려준다. 없거나 데이터가 지난달 것이면 지금 기준으로 다시 만든다. */
+// 저장 값은 "만든 달#v시드 버전"이다. 예전 값("2026-10")은 버전이 달라 다시 만든다.
+const seededKey = (now: Date) => `${currentMonth(now)}#v${SEED_VERSION}`;
+
+/** 데모 사용자를 돌려준다. 없거나 데이터가 지난달 것이거나 시드 버전이 다르면 지금 기준으로 다시 만든다. */
 export async function ensureDemoUser(db: Db, now = new Date()): Promise<User> {
-  const month = currentMonth(now);
+  const month = seededKey(now);
   const existing = await findDemoUser(db);
   if (existing && (await seededMonth(db, existing.id)) === month) return existing;
   return db.transaction(async (tx) => {
