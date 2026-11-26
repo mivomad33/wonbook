@@ -2,17 +2,16 @@
 // 기준(금지 문자열, 비밀 값, 내 계좌 식별값)은 공개 저장소에 두지 않는다. 이 파일에는 기준 자체를 쓰지 않는다.
 // - 금지 문자열: 저장소 밖 비공개 문서 폴더의 목록 파일(계좌번호, 실제 거래에서 나온 개인 정보 등)
 // - 비밀 값: .env.local의 비밀 변수 값(공개 값인 GOOGLE_CLIENT_ID 제외)
-// - 내 계좌 식별값: 로컬 앱 DB(data/wonbook.db)의 accounts.external_key 중 5자리 이상(배포 결과물·운영 사이트 검사만)
+// - 내 계좌 식별값: 비공개 문서 폴더의 목록 파일(한 줄에 하나, 5자리 이상, 배포 결과물·운영 사이트 검사만)
 // 하나라도 없으면 검사를 건너뛰지 않고 예외를 던진다.
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import Database from "better-sqlite3";
 
 export const ROOT = path.resolve(import.meta.dirname, "../..");
 const LIST_FILE = path.join(ROOT, "docs/checks/forbidden-strings.txt");
 const ENV_FILE = path.join(ROOT, ".env.local");
-const LOCAL_DB = path.join(ROOT, "data/wonbook.db");
+const ACCOUNT_ID_FILE = path.join(ROOT, "docs/checks/account-ids.txt");
 
 /** 비밀 변수 이름 규칙에 들어도 공개해도 되는 값 */
 const PUBLIC_ENV = ["GOOGLE_CLIENT_ID"];
@@ -63,18 +62,20 @@ function need(file: string): void {
 /** 하이픈·공백을 지운다. 계좌번호는 이 형태로 비교한다. */
 export const stripSeparators = (s: string) => s.replace(/[-\s]/g, "");
 
-/** 내 계좌 식별값. 로컬 앱 DB를 읽기 전용으로 연다. */
-export function loadAccountIds(file = LOCAL_DB): string[] {
+/** 내 계좌 식별값. 목록 파일에서 읽는다(`#`은 주석). */
+export function loadAccountIds(file = ACCOUNT_ID_FILE): string[] {
   need(file);
-  const db = new Database(file, { readonly: true, fileMustExist: true });
-  try {
-    const rows = db.prepare("select distinct external_key k from accounts where external_key is not null").all() as { k: string }[];
-    const ids = [...new Set(rows.map((r) => stripSeparators(r.k)).filter((k) => k.length >= MIN_ACCOUNT_ID_LEN))];
-    if (ids.length === 0) throw new BasisMissingError("내 계좌 식별값을 읽지 못해 검사를 할 수 없습니다.");
-    return ids;
-  } finally {
-    db.close();
-  }
+  const ids = [
+    ...new Set(
+      fs
+        .readFileSync(file, "utf8")
+        .split("\n")
+        .map((l) => stripSeparators(l.trim()))
+        .filter((l) => l && !l.startsWith("#") && l.length >= MIN_ACCOUNT_ID_LEN),
+    ),
+  ];
+  if (ids.length === 0) throw new BasisMissingError("내 계좌 식별값을 읽지 못해 검사를 할 수 없습니다.");
+  return ids;
 }
 
 /** opts.accountIds면 내 계좌 식별값도 읽는다(배포 결과물·운영 사이트 검사). */

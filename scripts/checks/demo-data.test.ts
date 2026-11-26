@@ -7,7 +7,7 @@ import { ensureDemoUser } from "@/auth/demo";
 import { createTestDb } from "@/db/test-db";
 import { loadBasis, ROOT, scanText } from "./basis";
 
-const hasBasis = ["docs/checks/forbidden-strings.txt", ".env.local", "data/wonbook.db"].every((f) => fs.existsSync(path.join(ROOT, f)));
+const hasBasis = ["docs/checks/forbidden-strings.txt", ".env.local", "docs/checks/account-ids.txt"].every((f) => fs.existsSync(path.join(ROOT, f)));
 
 describe.skipIf(!hasBasis)("데모 데이터 검사(4.5-2)", () => {
   it("데모 사용자의 모든 행에 금지 문자열·비밀 값·내 계좌 식별값이 없다", async () => {
